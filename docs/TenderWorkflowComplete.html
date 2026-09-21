@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zimbabwe Tender API - Workflow & Document Management Guide</title>
+    <style>
+        @media print {
+            @page {
+                size: A4;
+                margin: 2cm;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .no-break {
+                page-break-inside: avoid;
+            }
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+        }
+        
+        .cover-page {
+            text-align: center;
+            padding: 100px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .cover-page h1 {
+            font-size: 36px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 20px;
+        }
+        
+        .cover-page h2 {
+            font-size: 24px;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+        }
+        
+        .cover-page .meta {
+            margin-top: 60px;
+            font-size: 14px;
+            color: #95a5a6;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            color: #34495e;
+            font-size: 22px;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        h3 {
+            color: #2c3e50;
+            font-size: 18px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        h4 {
+            color: #555;
+            font-size: 16px;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        
+        p {
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+        
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        .feature-box {
+            background: #ecf0f1;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .feature-box h3 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        
+        .endpoint {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 12px;
+        }
+        
+        .method.post {
+            background: #28a745;
+            color: white;
+        }
+        
+        .method.get {
+            background: #007bff;
+            color: white;
+        }
+        
+        .method.put {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .method.delete {
+            background: #dc3545;
+            color: white;
+        }
+        
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+        
+        code {
+            background: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .workflow-diagram {
+            background: #fff;
+            border: 2px solid #3498db;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .workflow-step {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .workflow-step strong {
+            color: #2980b9;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-badge.approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-badge.completed {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th {
+            background: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .info-box {
+            background: #d1ecf1;
+            border-left: 5px solid #0c5460;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 5px solid #856404;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .success-box {
+            background: #d4edda;
+            border-left: 5px solid #155724;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 4px;
+        }
+        
+        .toc h2 {
+            margin-top: 0;
+            border: none;
+            padding: 0;
+        }
+        
+        .toc ul {
+            list-style: none;
+            margin-left: 0;
+        }
+        
+        .toc li {
+            margin-bottom: 5px;
+        }
+        
+        .toc a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        .email-section {
+            background: linear-gradient(to right, #e8f4f8, #f8f9fa);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cover Page -->
+    <div class="cover-page">
+        <h1>Zimbabwe Tender API</h1>
+        <h2>Tender Workflow & Document Management System</h2>
+        <p style="font-size: 18px; color: #7f8c8d; margin: 20px 0;">Complete Implementation Guide</p>
+        <div class="meta">
+            <p><strong>Version:</strong> 2.0</p>
+            <p><strong>Date:</strong> February 4, 2026</p>
+            <p><strong>Organization:</strong> Axis Solutions</p>
+        </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="page-break"></div>
+    <div class="toc no-break">
+        <h2>Table of Contents</h2>
+        <ul>
+            <li><a href="#overview">1. System Overview</a></li>
+            <li><a href="#features">2. Core Features</a>
+                <ul style="margin-left: 20px;">
+                    <li><a href="#assignments">2.1 Tender Assignments</a></li>
+                    <li><a href="#documents">2.2 Document Management</a></li>
+                    <li><a href="#checklist">2.3 Checklist System</a></li>
+                    <li><a href="#approvals">2.4 Approval Workflow</a></li>
+                </ul>
+            </li>
+            <li><a href="#emails">3. Email Notification System</a></li>
+            <li><a href="#workflows">4. Complete Workflows</a></li>
+            <li><a href="#api">5. API Reference</a></li>
+            <li><a href="#security">6. Security & Permissions</a></li>
+            <li><a href="#configuration">7. System Configuration</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="page-break"></div>
+    <h1 id="overview">1. System Overview</h1>
+    
+    <p>The Zimbabwe Tender API Workflow & Document Management System is a comprehensive solution for managing the complete tender lifecycle, from assignment to final approval. The system provides automated workflows, document management, task tracking, and multi-stage approval processes with integrated email notifications.</p>
+
+    <div class="success-box">
+        <h3>✅ Key Benefits</h3>
+        <ul>
+            <li><strong>Automated Workflows:</strong> Streamline tender processing with automated task assignments and notifications</li>
+            <li><strong>Complete Audit Trail:</strong> Track every action with automatic logging of who did what and when</li>
+            <li><strong>Email Integration:</strong> Automatic email notifications keep team members informed</li>
+            <li><strong>Document Control:</strong> Centralized document storage with version tracking</li>
+            <li><strong>Task Management:</strong> Checklist system ensures nothing is missed</li>
+            <li><strong>Multi-Stage Approvals:</strong> Sequential approval workflows with status tracking</li>
+        </ul>
+    </div>
+
+    <div class="page-break"></div>
+    <h1 id="features">2. Core Features</h1>
+
+    <h2 id="assignments">2.1 Tender Assignments</h2>
+    
+    <div class="feature-box">
+        <h3>Purpose</h3>
+        <p>Assign tenders to team members with clear instructions, due dates, and automatic email notifications. Track assignment status and workload across the team.</p>
+    </div>
+
+    <h3>Key Capabilities</h3>
+    <ul>
+        <li>Assign tenders to specific users with detailed instructions</li>
+        <li>Set due dates and track completion</li>
+        <li>Automatic email notification to assignee</li>
+        <li>View all assignments (by user, by tender, or system-wide)</li>
+        <li>Update assignment status and add completion notes</li>
+        <li>Reassign tenders when needed</li>
+    </ul>
+
+    <h3>Assignment Statuses</h3>
+    <p>
+        <span class="status-badge pending">Pending</span>
+        <span class="status-badge" style="background: #cce5ff; color: #004085;">InProgress</span>
+        <span class="status-badge completed">Completed</span>
+        <span class="status-badge" style="background: #f5c6cb; color: #721c24;">Cancelled</span>
+    </p>
+
+    <h3>API Endpoints</h3>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderAssignments/assign
+        <p style="margin-top: 8px; color: #666;">Assign a tender to a team member</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderAssignments/my-assignments
+        <p style="margin-top: 8px; color: #666;">Get current user's assigned tenders</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderAssignments/tender/{tenderId}/{tenderType}
+        <p style="margin-top: 8px; color: #666;">Get all assignments for a specific tender</p>
+    </div>
+    <div class="endpoint">
+        <span class="method put">PUT</span> /api/TenderAssignments/{id}/status
+        <p style="margin-top: 8px; color: #666;">Update assignment status</p>
+    </div>
+
+    <h3>Example: Assign a Tender</h3>
+    <pre>{
+  "tenderId": 123,
+  "tenderType": "Live",
+  "assignedToUserId": 5,
+  "dueDate": "2026-02-15T00:00:00",
+  "assignmentInstructions": "Please review this tender and prepare technical proposal",
+  "notes": "High priority - deadline approaching"
+}</pre>
+
+    <div class="page-break"></div>
+    <h2 id="documents">2.2 Document Management</h2>
+
+    <div class="feature-box">
+        <h3>Purpose</h3>
+        <p>Upload, organize, and manage all tender-related documents in a centralized location. Support for multiple document types with version control and secure storage.</p>
+    </div>
+
+    <h3>Key Capabilities</h3>
+    <ul>
+        <li>Upload multiple document types (certificates, proposals, supporting documents)</li>
+        <li>Maximum file size: 50 MB per document</li>
+        <li>Automatic file organization by tender ID</li>
+        <li>Document version tracking</li>
+        <li>Secure download with authentication</li>
+        <li>Document metadata (type, description, upload date, uploader)</li>
+    </ul>
+
+    <h3>Supported Document Types</h3>
+    <table>
+        <tr>
+            <th>Document Type</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>PRAZ Certificate</td>
+            <td>Procurement Regulatory Authority certificate</td>
+        </tr>
+        <tr>
+            <td>Tax Clearance</td>
+            <td>Zimbabwe Revenue Authority tax clearance</td>
+        </tr>
+        <tr>
+            <td>Company Registration</td>
+            <td>Certificate of incorporation and registration</td>
+        </tr>
+        <tr>
+            <td>Technical Proposal</td>
+            <td>Technical submission addressing requirements</td>
+        </tr>
+        <tr>
+            <td>Financial Proposal</td>
+            <td>Pricing and financial information</td>
+        </tr>
+        <tr>
+            <td>Tender Response</td>
+            <td>Main tender submission document</td>
+        </tr>
+        <tr>
+            <td>Supporting Document</td>
+            <td>Additional supporting documentation</td>
+        </tr>
+        <tr>
+            <td>Certificate of Compliance</td>
+            <td>Compliance certifications</td>
+        </tr>
+        <tr>
+            <td>Bank Statement</td>
+            <td>Financial statements and bank references</td>
+        </tr>
+        <tr>
+            <td>Reference Letter</td>
+            <td>Client references and testimonials</td>
+        </tr>
+    </table>
+
+    <h3>API Endpoints</h3>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderDocuments/upload
+        <p style="margin-top: 8px; color: #666;">Upload a document (multipart/form-data)</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderDocuments/tender/{tenderId}/{tenderType}
+        <p style="margin-top: 8px; color: #666;">Get all documents for a tender</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderDocuments/{id}/download
+        <p style="margin-top: 8px; color: #666;">Download a specific document</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderDocuments/types
+        <p style="margin-top: 8px; color: #666;">Get available document types</p>
+    </div>
+    <div class="endpoint">
+        <span class="method delete">DELETE</span> /api/TenderDocuments/{id}
+        <p style="margin-top: 8px; color: #666;">Delete a document (Admin/Manager only)</p>
+    </div>
+
+    <div class="info-box">
+        <h4>📁 File Storage Location</h4>
+        <p>Documents are stored in: <code>{ContentRoot}/uploads/tenders/{tenderId}/</code></p>
+        <p>Files are automatically renamed with unique GUIDs to prevent naming conflicts and ensure security.</p>
+    </div>
+
+    <div class="page-break"></div>
+    <h2 id="checklist">2.3 Checklist System</h2>
+
+    <div class="feature-box">
+        <h3>Purpose</h3>
+        <p>Track tender requirements and tasks to ensure nothing is missed. Create custom checklists or use predefined templates for common tender types.</p>
+    </div>
+
+    <h3>Key Capabilities</h3>
+    <ul>
+        <li>Create individual checklist items or bulk items from templates</li>
+        <li>Mark items as required or optional</li>
+        <li>Categorize items (Documentation, Technical, Financial, Legal, etc.)</li>
+        <li>Set due dates for specific items</li>
+        <li>Track completion status and who completed each item</li>
+        <li>Filter checklist by status or category</li>
+        <li>Reorder checklist items</li>
+    </ul>
+
+    <h3>Checklist Item Statuses</h3>
+    <p>
+        <span class="status-badge pending">Pending</span>
+        <span class="status-badge" style="background: #cce5ff; color: #004085;">InProgress</span>
+        <span class="status-badge completed">Completed</span>
+        <span class="status-badge" style="background: #fff3cd; color: #856404;">Blocked</span>
+    </p>
+
+    <h3>Predefined Templates</h3>
+    <div class="no-break">
+        <h4>1. Standard Tender Checklist</h4>
+        <ul>
+            <li>PRAZ Certificate Uploaded</li>
+            <li>Tax Clearance Uploaded</li>
+            <li>Company Registration Uploaded</li>
+            <li>Technical Proposal Prepared</li>
+            <li>Financial Proposal Prepared</li>
+            <li>Supporting Documents Uploaded</li>
+            <li>Final Review Completed</li>
+        </ul>
+    </div>
+
+    <div class="no-break">
+        <h4>2. Construction Tender Checklist</h4>
+        <ul>
+            <li>PRAZ Certificate Uploaded</li>
+            <li>Tax Clearance Uploaded</li>
+            <li>Engineering Council Registration</li>
+            <li>Construction Industry Development Board (CIDB) Certificate</li>
+            <li>Technical Proposal with BOQ</li>
+            <li>Health & Safety Policy</li>
+            <li>Environmental Management Plan</li>
+            <li>Project Schedule</li>
+            <li>Financial Capacity Documents</li>
+        </ul>
+    </div>
+
+    <h3>API Endpoints</h3>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderChecklist
+        <p style="margin-top: 8px; color: #666;">Create a single checklist item</p>
+    </div>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderChecklist/bulk
+        <p style="margin-top: 8px; color: #666;">Create multiple checklist items at once</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderChecklist/tender/{tenderId}/{tenderType}
+        <p style="margin-top: 8px; color: #666;">Get checklist for a tender</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderChecklist/templates
+        <p style="margin-top: 8px; color: #666;">Get available checklist templates</p>
+    </div>
+    <div class="endpoint">
+        <span class="method put">PUT</span> /api/TenderChecklist/{id}/status
+        <p style="margin-top: 8px; color: #666;">Update checklist item status</p>
+    </div>
+
+    <div class="page-break"></div>
+    <h2 id="approvals">2.4 Approval Workflow</h2>
+
+    <div class="feature-box">
+        <h3>Purpose</h3>
+        <p>Manage multi-stage approval processes for tenders. Create sequential approval chains where each stage must be approved before proceeding to the next. Automatic email notifications keep approvers informed.</p>
+    </div>
+
+    <h3>Key Capabilities</h3>
+    <ul>
+        <li>Create single or multi-stage approval workflows</li>
+        <li>Sequential approval chains (Stage 1 → Stage 2 → Stage 3)</li>
+        <li>Automatic email notifications to approvers</li>
+        <li>Approve, reject, or request changes</li>
+        <li>View pending approvals requiring your action</li>
+        <li>Track approval history and comments</li>
+        <li>Required vs. optional approval stages</li>
+    </ul>
+
+    <h3>Approval Statuses</h3>
+    <p>
+        <span class="status-badge pending">Pending</span>
+        <span class="status-badge approved">Approved</span>
+        <span class="status-badge rejected">Rejected</span>
+        <span class="status-badge" style="background: #fff3cd; color: #856404;">RequestChanges</span>
+    </p>
+
+    <h3>Typical Approval Stages</h3>
+    <div class="workflow-diagram">
+        <div class="workflow-step">
+            <strong>Stage 1: Initial Review</strong><br>
+            Team Lead reviews completeness of tender documents and checklist
+        </div>
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        <div class="workflow-step">
+            <strong>Stage 2: Technical Review</strong><br>
+            Technical Expert evaluates technical proposal and compliance
+        </div>
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        <div class="workflow-step">
+            <strong>Stage 3: Financial Review</strong><br>
+            Finance Manager reviews pricing and financial documents
+        </div>
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        <div class="workflow-step">
+            <strong>Stage 4: Final Approval</strong><br>
+            Managing Director gives final approval for submission
+        </div>
+    </div>
+
+    <h3>API Endpoints</h3>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderApprovals/request
+        <p style="margin-top: 8px; color: #666;">Request approval for a specific stage</p>
+    </div>
+    <div class="endpoint">
+        <span class="method post">POST</span> /api/TenderApprovals/workflow
+        <p style="margin-top: 8px; color: #666;">Create complete multi-stage approval workflow</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderApprovals/pending
+        <p style="margin-top: 8px; color: #666;">Get pending approvals for current user</p>
+    </div>
+    <div class="endpoint">
+        <span class="method get">GET</span> /api/TenderApprovals/my-requests
+        <p style="margin-top: 8px; color: #666;">Get approval requests made by current user</p>
+    </div>
+    <div class="endpoint">
+        <span class="method put">PUT</span> /api/TenderApprovals/{id}/respond
+        <p style="margin-top: 8px; color: #666;">Approve, reject, or request changes</p>
+    </div>
+
+    <h3>Example: Create Multi-Stage Workflow</h3>
+    <pre>{
+  "tenderId": 123,
+  "tenderType": "Live",
+  "stages": [
+    {
+      "stageName": "Initial Review",
+      "approverUserId": 3,
+      "requestDetails": "Please review tender documents for completeness",
+      "isRequired": true
+    },
+    {
+      "stageName": "Technical Review",
+      "approverUserId": 5,
+      "requestDetails": "Technical evaluation required",
+      "isRequired": true
+    },
+    {
+      "stageName": "Final Approval",
+      "approverUserId": 2,
+      "requestDetails": "Final approval before submission",
+      "isRequired": true
+    }
+  ]
+}</pre>
+
+    <div class="page-break"></div>
+    <h1 id="emails">3. Email Notification System</h1>
+
+    <div class="email-section">
+        <h2 style="margin-top: 0; border: none; padding: 0;">Automated Email Notifications</h2>
+        <p>The system automatically sends professional email notifications to keep team members informed of important events. All emails are sent via SMTP with HTML formatting for better readability.</p>
+    </div>
+
+    <h2>Email Triggers</h2>
+
+    <h3>1. Tender Assignment Email</h3>
+    <div class="feature-box">
+        <h4>When Sent</h4>
+        <p>Automatically sent when a tender is assigned to a user</p>
+        
+        <h4>Recipient</h4>
+        <p>The user being assigned the tender</p>
+        
+        <h4>Email Content Includes</h4>
+        <ul>
+            <li>Tender title and reference number</li>
+            <li>Tender type (Live/Closed)</li>
+            <li>Due date (if specified)</li>
+            <li>Assignment instructions</li>
+            <li>Additional notes</li>
+            <li>Link to view tender details</li>
+            <li>Name of person who made the assignment</li>
+        </ul>
+        
+        <h4>Subject Line</h4>
+        <code>New Tender Assignment: [Tender Title]</code>
+    </div>
+
+    <h3>2. Approval Request Email</h3>
+    <div class="feature-box">
+        <h4>When Sent</h4>
+        <p>Automatically sent when an approval is requested from a user</p>
+        
+        <h4>Recipient</h4>
+        <p>The approver user</p>
+        
+        <h4>Email Content Includes</h4>
+        <ul>
+            <li>Tender title and reference number</li>
+            <li>Approval stage name</li>
+            <li>Request details and requirements</li>
+            <li>Name of requester</li>
+            <li>Link to review and respond</li>
+            <li>Whether approval is required or optional</li>
+        </ul>
+        
+        <h4>Subject Line</h4>
+        <code>Approval Requested: [Tender Title] - [Stage Name]</code>
+    </div>
+
+    <h3>3. Approval Response Email</h3>
+    <div class="feature-box">
+        <h4>When Sent</h4>
+        <p>Automatically sent when an approver responds to an approval request</p>
+        
+        <h4>Recipient</h4>
+        <p>The user who requested the approval</p>
+        
+        <h4>Email Content Includes</h4>
+        <ul>
+            <li>Tender title and reference number</li>
+            <li>Approval stage name</li>
+            <li>Response status (Approved/Rejected/Changes Requested)</li>
+            <li>Approver's comments</li>
+            <li>Name of approver</li>
+            <li>Next steps (if applicable)</li>
+        </ul>
+        
+        <h4>Subject Lines</h4>
+        <ul>
+            <li><code>✅ Approved: [Tender Title] - [Stage Name]</code></li>
+            <li><code>❌ Rejected: [Tender Title] - [Stage Name]</code></li>
+            <li><code>🔄 Changes Requested: [Tender Title] - [Stage Name]</code></li>
+        </ul>
+    </div>
+
+    <h2>Email Configuration</h2>
+
+    <div class="warning-box">
+        <h3>⚠️ SMTP Setup Required</h3>
+        <p>Email notifications require proper SMTP configuration in appsettings.json</p>
+    </div>
+
+    <h3>Configuration in appsettings.json</h3>
+    <pre>{
+  "EmailSettings": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "FromEmail": "noreply@axissolutions.co.zw",
+    "FromName": "Zimbabwe Tender API System",
+    "Username": "your-email@gmail.com",
+    "Password": "your-app-password",
+    "EnableSsl": true
+  }
+}</pre>
+
+    <h3>Gmail Configuration Steps</h3>
+    <ol>
+        <li>Enable 2-factor authentication on your Google account</li>
+        <li>Go to Google Account Settings → Security → App Passwords</li>
+        <li>Generate a new App Password for "Mail"</li>
+        <li>Copy the 16-character password</li>
+        <li>Use this password in the EmailSettings configuration</li>
+        <li>Never use your regular Gmail password</li>
+    </ol>
+
+    <div class="info-box">
+        <h4>📧 Email Delivery Tracking</h4>
+        <p>The system tracks email delivery status:</p>
+        <ul>
+            <li><strong>EmailSent:</strong> Boolean flag indicating if email was sent</li>
+            <li><strong>EmailSentAt:</strong> Timestamp of when email was sent</li>
+            <li>Failed emails are logged with error details</li>
+        </ul>
+    </div>
+
+    <div class="page-break"></div>
+    <h1 id="workflows">4. Complete Workflows</h1>
+
+    <h2>Workflow 1: Complete Tender Submission Process</h2>
+
+    <div class="workflow-diagram">
+        <div class="workflow-step">
+            <strong>Step 1: Assign Tender to Team Member</strong><br>
+            POST /api/TenderAssignments/assign<br>
+            <em>→ Email sent to assignee</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 2: Create Checklist from Template</strong><br>
+            GET /api/TenderChecklist/templates<br>
+            POST /api/TenderChecklist/bulk
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 3: Upload Required Documents</strong><br>
+            POST /api/TenderDocuments/upload (multiple times)<br>
+            <em>Upload PRAZ cert, tax clearance, proposals, etc.</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 4: Complete Checklist Items</strong><br>
+            PUT /api/TenderChecklist/{id}/status<br>
+            <em>Mark items as completed as work progresses</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 5: Request Approvals</strong><br>
+            POST /api/TenderApprovals/workflow<br>
+            <em>→ Emails sent to all approvers in sequence</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 6: Approvers Review and Respond</strong><br>
+            PUT /api/TenderApprovals/{id}/respond<br>
+            <em>→ Email sent to requester with response</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 7: Final Submission</strong><br>
+            Update assignment status to Completed<br>
+            PUT /api/TenderAssignments/{id}/status
+        </div>
+    </div>
+
+    <h2>Workflow 2: Document Review & Approval</h2>
+
+    <div class="workflow-diagram">
+        <div class="workflow-step">
+            <strong>Step 1: Upload Documents</strong><br>
+            Team member uploads all required documents
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 2: Document Review</strong><br>
+            Reviewer downloads and reviews all documents<br>
+            GET /api/TenderDocuments/tender/{tenderId}/Live
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 3: Request Changes (if needed)</strong><br>
+            Approver requests changes via approval workflow<br>
+            <em>→ Email sent to submitter</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 4: Upload Revised Documents</strong><br>
+            Team member uploads corrected documents<br>
+            <em>System tracks version history</em>
+        </div>
+        
+        <div style="text-align: center; font-size: 20px; margin: 10px 0;">↓</div>
+        
+        <div class="workflow-step">
+            <strong>Step 5: Final Approval</strong><br>
+            Approver confirms all documents are correct<br>
+            <em>→ Approval email sent</em>
+        </div>
+    </div>
+
+    <div class="page-break"></div>
+    <h1 id="api">5. API Reference</h1>
+
+    <h2>Complete Endpoint Listing</h2>
+
+    <h3>Tender Assignments</h3>
+    <table>
+        <tr>
+            <th style="width: 15%;">Method</th>
+            <th style="width: 45%;">Endpoint</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderAssignments/assign</td>
+            <td>Assign a tender to a user</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderAssignments/my-assignments</td>
+            <td>Get current user's assignments</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderAssignments/user/{userId}</td>
+            <td>Get assignments for specific user</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderAssignments/tender/{tenderId}/{tenderType}</td>
+            <td>Get all assignments for a tender</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderAssignments/all</td>
+            <td>Get all assignments (Admin/Manager)</td>
+        </tr>
+        <tr>
+            <td><span class="method put">PUT</span></td>
+            <td>/api/TenderAssignments/{id}/status</td>
+            <td>Update assignment status</td>
+        </tr>
+        <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/TenderAssignments/{id}</td>
+            <td>Delete an assignment</td>
+        </tr>
+    </table>
+
+    <h3>Tender Documents</h3>
+    <table>
+        <tr>
+            <th style="width: 15%;">Method</th>
+            <th style="width: 45%;">Endpoint</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderDocuments/upload</td>
+            <td>Upload a document (multipart/form-data)</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderDocuments/{id}</td>
+            <td>Get document details</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderDocuments/{id}/download</td>
+            <td>Download a document</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderDocuments/tender/{tenderId}/{tenderType}</td>
+            <td>Get all documents for a tender</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderDocuments/types</td>
+            <td>Get available document types</td>
+        </tr>
+        <tr>
+            <td><span class="method put">PUT</span></td>
+            <td>/api/TenderDocuments/{id}</td>
+            <td>Update document details</td>
+        </tr>
+        <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/TenderDocuments/{id}</td>
+            <td>Delete a document (Admin/Manager)</td>
+        </tr>
+    </table>
+
+    <h3>Tender Checklist</h3>
+    <table>
+        <tr>
+            <th style="width: 15%;">Method</th>
+            <th style="width: 45%;">Endpoint</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderChecklist</td>
+            <td>Create a checklist item</td>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderChecklist/bulk</td>
+            <td>Create multiple items at once</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderChecklist/{id}</td>
+            <td>Get single checklist item</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderChecklist/tender/{tenderId}/{tenderType}</td>
+            <td>Get tender checklist</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderChecklist/templates</td>
+            <td>Get checklist templates</td>
+        </tr>
+        <tr>
+            <td><span class="method put">PUT</span></td>
+            <td>/api/TenderChecklist/{id}/status</td>
+            <td>Update item status</td>
+        </tr>
+        <tr>
+            <td><span class="method put">PUT</span></td>
+            <td>/api/TenderChecklist/{id}</td>
+            <td>Update item details</td>
+        </tr>
+        <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/TenderChecklist/{id}</td>
+            <td>Delete a checklist item</td>
+        </tr>
+    </table>
+
+    <h3>Tender Approvals</h3>
+    <table>
+        <tr>
+            <th style="width: 15%;">Method</th>
+            <th style="width: 45%;">Endpoint</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderApprovals/request</td>
+            <td>Request single approval</td>
+        </tr>
+        <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/TenderApprovals/workflow</td>
+            <td>Create multi-stage workflow</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderApprovals/{id}</td>
+            <td>Get approval details</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderApprovals/pending</td>
+            <td>Get pending approvals for current user</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderApprovals/my-requests</td>
+            <td>Get approval requests made by current user</td>
+        </tr>
+        <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/TenderApprovals/tender/{tenderId}/{tenderType}</td>
+            <td>Get all approvals for a tender</td>
+        </tr>
+        <tr>
+            <td><span class="method put">PUT</span></td>
+            <td>/api/TenderApprovals/{id}/respond</td>
+            <td>Approve/reject/request changes</td>
+        </tr>
+        <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/TenderApprovals/{id}</td>
+            <td>Delete pending approval (Admin/Manager)</td>
+        </tr>
+    </table>
+
+    <div class="page-break"></div>
+    <h1 id="security">6. Security & Permissions</h1>
+
+    <h2>Authentication</h2>
+    <div class="info-box">
+        <p>All workflow endpoints require authentication via JWT Bearer token. Unauthenticated requests will receive a 401 Unauthorized response.</p>
+    </div>
+
+    <h3>How to Authenticate</h3>
+    <ol>
+        <li>Obtain JWT token via <code>/api/Auth/login</code> endpoint</li>
+        <li>Include token in Authorization header: <code>Bearer {token}</code></li>
+        <li>Token expires after 24 hours (configurable)</li>
+        <li>Refresh tokens available for extended sessions</li>
+    </ol>
+
+    <h2>Role-Based Access Control</h2>
+
+    <table>
+        <tr>
+            <th>Permission</th>
+            <th>Admin</th>
+            <th>Manager</th>
+            <th>User</th>
+        </tr>
+        <tr>
+            <td>Assign tenders</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+        <tr>
+            <td>Upload documents</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+        <tr>
+            <td>Create checklist items</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+        <tr>
+            <td>Request approvals</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+        <tr>
+            <td>Respond to assigned approvals</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+        <tr>
+            <td>Delete documents</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>❌</td>
+        </tr>
+        <tr>
+            <td>Delete approvals</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>❌</td>
+        </tr>
+        <tr>
+            <td>View all assignments</td>
+            <td>✅</td>
+            <td>✅</td>
+            <td>Own only</td>
+        </tr>
+    </table>
+
+    <h2>Audit Trail</h2>
+
+    <div class="feature-box">
+        <h3>Complete Activity Tracking</h3>
+        <p>All workflow entities inherit from AuditableEntity, automatically tracking:</p>
+        <ul>
+            <li><strong>CreatedAt:</strong> When the record was created</li>
+            <li><strong>CreatedBy:</strong> Username who created it</li>
+            <li><strong>UpdatedAt:</strong> When last modified</li>
+            <li><strong>UpdatedBy:</strong> Username who last modified it</li>
+            <li><strong>DeletedAt:</strong> When soft deleted (if applicable)</li>
+            <li><strong>DeletedBy:</strong> Username who deleted it</li>
+            <li><strong>IsDeleted:</strong> Soft delete flag</li>
+            <li><strong>RowVersion:</strong> Concurrency control</li>
+        </ul>
+    </div>
+
+    <div class="page-break"></div>
+    <h1 id="configuration">7. System Configuration</h1>
+
+    <h2>Database Configuration</h2>
+
+    <h3>Connection String (appsettings.json)</h3>
+    <pre>{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=DEV-ONJANJENI\\SQLEXPRESS;Database=TheTenderDBTEST2;User Id=obey;Password=obey;TrustServerCertificate=True;"
+  }
+}</pre>
+
+    <h3>New Database Tables</h3>
+    <ul>
+        <li><strong>TenderAssignments</strong> - Assignment tracking</li>
+        <li><strong>TenderDocuments</strong> - Document metadata</li>
+        <li><strong>TenderChecklistItems</strong> - Checklist items</li>
+        <li><strong>TenderApprovals</strong> - Approval workflow</li>
+    </ul>
+
+    <h3>Apply Migration</h3>
+    <pre>dotnet ef database update</pre>
+
+    <h2>Email Configuration</h2>
+
+    <h3>SMTP Settings (appsettings.json)</h3>
+    <pre>{
+  "EmailSettings": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "FromEmail": "noreply@axissolutions.co.zw",
+    "FromName": "Zimbabwe Tender API System",
+    "Username": "your-email@gmail.com",
+    "Password": "your-app-password",
+    "EnableSsl": true
+  }
+}</pre>
+
+    <h2>File Upload Configuration</h2>
+
+    <h3>Storage Settings</h3>
+    <ul>
+        <li><strong>Upload Directory:</strong> {ContentRoot}/uploads/tenders/{tenderId}/</li>
+        <li><strong>Maximum File Size:</strong> 50 MB (configured in controller)</li>
+        <li><strong>Allowed File Types:</strong> All types (configure restrictions as needed)</li>
+    </ul>
+
+    <h3>Increase Upload Limit (if needed)</h3>
+    <p>In Program.cs:</p>
+    <pre>builder.Services.Configure&lt;FormOptions&gt;(options =>
+{
+    options.MultipartBodyLengthLimit = 104857600; // 100 MB
+});</pre>
+
+    <h2>System Requirements</h2>
+
+    <table>
+        <tr>
+            <th>Component</th>
+            <th>Requirement</th>
+        </tr>
+        <tr>
+            <td>Framework</td>
+            <td>.NET 8.0</td>
+        </tr>
+        <tr>
+            <td>Database</td>
+            <td>SQL Server 2019 or later</td>
+        </tr>
+        <tr>
+            <td>SMTP Server</td>
+            <td>Gmail, Office 365, or custom SMTP</td>
+        </tr>
+        <tr>
+            <td>Disk Space</td>
+            <td>Sufficient for document storage (estimate based on usage)</td>
+        </tr>
+        <tr>
+            <td>Memory</td>
+            <td>Minimum 2 GB RAM</td>
+        </tr>
+    </table>
+
+    <div class="page-break"></div>
+    <div class="success-box">
+        <h2>✅ System Summary</h2>
+        <p>The Zimbabwe Tender API Workflow & Document Management System provides a complete solution for managing tender lifecycles with:</p>
+        <ul>
+            <li>✅ <strong>Automated Workflows:</strong> Streamline tender processing with assignments, checklists, and approvals</li>
+            <li>✅ <strong>Document Management:</strong> Centralized storage with version control and secure access</li>
+            <li>✅ <strong>Email Notifications:</strong> Keep team members informed at every step</li>
+            <li>✅ <strong>Complete Audit Trail:</strong> Track all activities with automatic logging</li>
+            <li>✅ <strong>Role-Based Security:</strong> Control access based on user roles</li>
+            <li>✅ <strong>RESTful API:</strong> Easy integration with frontend applications</li>
+        </ul>
+    </div>
+
+    <div class="info-box">
+        <h3>📞 Support & Documentation</h3>
+        <p><strong>API Base URL:</strong> http://localhost:8096/api</p>
+        <p><strong>Swagger Documentation:</strong> http://localhost:8096/swagger</p>
+        <p><strong>Organization:</strong> Axis Solutions</p>
+        <p><strong>Version:</strong> 2.0</p>
+        <p><strong>Last Updated:</strong> February 4, 2026</p>
+    </div>
+
+    <div style="text-align: center; margin-top: 60px; padding: 30px; border-top: 2px solid #3498db; color: #7f8c8d;">
+        <p><strong>Zimbabwe Tender API - Workflow & Document Management System</strong></p>
+        <p>© 2026 Axis Solutions. All rights reserved.</p>
+    </div>
+</body>
+</html>

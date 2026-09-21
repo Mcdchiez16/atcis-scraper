@@ -1,0 +1,8 @@
+appsettings.Supabase.local.json
+bin/
+obj/
+*.db*
+*.user
+.DS_Store
+C:/
+uploads/

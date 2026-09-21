@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tender Workflow & Documents – Summary</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --text: #1a1a1a;
+      --muted: #555;
+      --accent: #0b6cff;
+      --bg: #fff;
+      --border: #ddd;
+    }
+    html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif; }
+    body { margin: 0; }
+    .page { max-width: 860px; margin: 24px auto; padding: 24px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 24px 0 8px; }
+    h3 { font-size: 16px; margin: 16px 0 6px; }
+    p { line-height: 1.6; }
+    ul { margin: 8px 0 16px 22px; }
+    code { background: #f6f8fa; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+    .meta { color: var(--muted); font-size: 13px; }
+    .card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 12px 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; }
+    th { background: #f4f7ff; }
+    .badge { display: inline-block; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .muted { color: var(--muted); }
+    .hl { color: var(--accent); }
+    .break { page-break-after: always; margin: 28px 0; border-top: 2px dashed var(--border); }
+
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; margin: 0; padding: 0; }
+      header { margin-top: 8px; }
+      .card { break-inside: avoid; }
+      a[href]:after { content: " (" attr(href) ")"; font-size: 11px; color: var(--muted); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <h1>Tender Workflow & Documents – Summary</h1>
+        <div class="meta">Zimbabwe Tender API • Generated: <span id="genDate"></span></div>
+      </div>
+      <div class="badge">Version v2.0</div>
+    </header>
+
+    <section class="card">
+      <h2>Overview</h2>
+      <p>This summary explains how the Tender Workflow features work: assignments, document uploads, checklists, and multi-stage approvals. It also covers email notifications and key API endpoints used by clients.</p>
+      <div class="grid">
+        <div>
+          <h3>Base URLs</h3>
+          <ul class="mono">
+            <li>HTTP: <span class="hl">http://localhost:8096</span></li>
+            <li>HTTPS: <span class="hl">https://localhost:8095</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Auth</h3>
+          <ul>
+            <li>JWT required for all endpoints</li>
+            <li>Role-based access: Admin/Manager elevated actions</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Key Components</h2>
+      <h3>1) Assignments</h3>
+      <p>Assign tenders to users, set due dates, track status, and optionally send notification emails.</p>
+      <ul>
+        <li><b>Create</b>: <code>POST /api/TenderAssignments/assign</code></li>
+        <li><b>My Assignments</b>: <code>GET /api/TenderAssignments/my-assignments</code></li>
+        <li><b>By Tender</b>: <code>GET /api/TenderAssignments/tender/{tenderId}/{tenderType}</code></li>
+        <li><b>Update Status</b>: <code>PUT /api/TenderAssignments/{id}/status</code></li>
+      </ul>
+
+      <h3>2) Documents</h3>
+      <p>Upload PRAZ certificates, proposals, and supporting files. Files are stored under <span class="mono">uploads/tenders/{tenderId}/</span> with GUID filenames.</p>
+      <ul>
+        <li><b>Upload</b>: <code>POST /api/TenderDocuments/upload</code> (multipart/form-data)</li>
+        <li><b>List</b>: <code>GET /api/TenderDocuments/tender/{tenderId}/{tenderType}</code></li>
+        <li><b>Download</b>: <code>GET /api/TenderDocuments/{id}/download</code></li>
+        <li><b>Update/Delete</b>: <code>PUT|DELETE /api/TenderDocuments/{id}</code></li>
+      </ul>
+
+      <h3>3) Checklist</h3>
+      <p>Create items, use templates, and mark completion to keep tender submission on track.</p>
+      <ul>
+        <li><b>Create</b>: <code>POST /api/TenderChecklist</code> or bulk via <code>POST /api/TenderChecklist/bulk</code></li>
+        <li><b>By Tender</b>: <code>GET /api/TenderChecklist/tender/{tenderId}/{tenderType}</code></li>
+        <li><b>Templates</b>: <code>GET /api/TenderChecklist/templates</code></li>
+        <li><b>Update Status</b>: <code>PUT /api/TenderChecklist/{id}/status</code></li>
+      </ul>
+
+      <h3>4) Approvals</h3>
+      <p>Multi-stage approvals with sequential workflow (Initial Review → Technical → Final Approval). Approvers receive email notifications and respond with approve/reject/request changes.</p>
+      <ul>
+        <li><b>Request</b>: <code>POST /api/TenderApprovals/request</code></li>
+        <li><b>Create Workflow</b>: <code>POST /api/TenderApprovals/workflow</code></li>
+        <li><b>Pending</b>: <code>GET /api/TenderApprovals/pending</code></li>
+        <li><b>Respond</b>: <code>PUT /api/TenderApprovals/{id}/respond</code></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Email Notifications</h2>
+      <p>Emails are sent for key workflow events. Configure SMTP in <span class="mono">appsettings.json</span> (Gmail requires App Password).</p>
+      <ul>
+        <li>Assignment Created → Email to assignee</li>
+        <li>Approval Requested → Email to approver</li>
+        <li>Approval Response → Email to requester (approved / rejected / changes requested)</li>
+      </ul>
+      <p class="muted">Settings: <span class="mono">EmailSettings.SmtpHost</span>, <span class="mono">SmtpPort</span>, <span class="mono">FromEmail</span>, <span class="mono">Username</span>, <span class="mono">Password</span>, <span class="mono">EnableSsl</span></p>
+    </section>
+
+    <section class="card">
+      <h2>Quick Flows</h2>
+      <div class="grid">
+        <div>
+          <h3>Complete Submission</h3>
+          <ol>
+            <li>Assign tender to user</li>
+            <li>Create checklist (optionally from template)</li>
+            <li>Upload required documents</li>
+            <li>Update checklist as items complete</li>
+            <li>Create approval workflow</li>
+            <li>Approver responds to each stage</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Document Management</h3>
+          <ol>
+            <li>Upload document (multipart/form-data)</li>
+            <li>List and download documents for the tender</li>
+            <li>Update metadata or delete (Admin/Manager)</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <div class="break"></div>
+
+    <section class="card">
+      <h2>Endpoint Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Assignments</td><td>POST</td><td>/api/TenderAssignments/assign</td><td>Create assignment</td></tr>
+          <tr><td>Assignments</td><td>GET</td><td>/api/TenderAssignments/my-assignments</td><td>Current user</td></tr>
+          <tr><td>Assignments</td><td>PUT</td><td>/api/TenderAssignments/{id}/status</td><td>Update status</td></tr>
+          <tr><td>Documents</td><td>POST</td><td>/api/TenderDocuments/upload</td><td>Multipart upload</td></tr>
+          <tr><td>Documents</td><td>GET</td><td>/api/TenderDocuments/tender/{tenderId}/{tenderType}</td><td>List by tender</td></tr>
+          <tr><td>Documents</td><td>GET</td><td>/api/TenderDocuments/{id}/download</td><td>Download file</td></tr>
+          <tr><td>Checklist</td><td>POST</td><td>/api/TenderChecklist</td><td>Create item</td></tr>
+          <tr><td>Checklist</td><td>POST</td><td>/api/TenderChecklist/bulk</td><td>Bulk create</td></tr>
+          <tr><td>Checklist</td><td>GET</td><td>/api/TenderChecklist/tender/{tenderId}/{tenderType}</td><td>List by tender</td></tr>
+          <tr><td>Approvals</td><td>POST</td><td>/api/TenderApprovals/request</td><td>Request approval</td></tr>
+          <tr><td>Approvals</td><td>POST</td><td>/api/TenderApprovals/workflow</td><td>Create workflow</td></tr>
+          <tr><td>Approvals</td><td>PUT</td><td>/api/TenderApprovals/{id}/respond</td><td>Approve/Reject/RequestChanges</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">All endpoints require Authorization: Bearer &lt;token&gt;</p>
+    </section>
+
+    <section class="card">
+      <h2>Printing to PDF</h2>
+      <ol>
+        <li>Open this file in a browser.</li>
+        <li>Press <b>Ctrl+P</b> (or File → Print).</li>
+        <li>Select <b>Save as PDF</b> and choose A4, 10–15mm margins.</li>
+        <li>Click <b>Save</b>.</li>
+      </ol>
+      <p class="muted">Path: <span class="mono">ZimbabweTenderAPI/docs/TenderWorkflowSummary.html</span></p>
+    </section>
+
+    <footer class="muted" style="margin-top: 16px;">
+      © 2026 Axis Solutions – Zimbabwe Tender API
+    </footer>
+  </div>
+  <script>
+    document.getElementById('genDate').textContent = new Date().toLocaleString();
+  </script>
+</body>
+</html>

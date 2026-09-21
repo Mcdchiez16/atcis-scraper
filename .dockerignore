@@ -1,0 +1,10 @@
+bin/
+obj/
+*.db
+*.db-shm
+*.db-wal
+appsettings.Supabase.local.json
+.DS_Store
+.vs/
+.git/
+uploads/
