@@ -28,6 +28,37 @@ public static class SupabaseScraperHost
         app.MapGet("/health", () => Results.Ok(new { service = "atcis-scraper", mode = "supabase" }));
         await app.RunAsync();
     }
+    public static string? ResolveConfig(IConfiguration config, string key, params string[] alternatives)
+    {
+        var val = config[key];
+        if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+        foreach (var alt in alternatives)
+        {
+            val = config[alt];
+            if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+            val = Environment.GetEnvironmentVariable(alt);
+            if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+        }
+
+        val = Environment.GetEnvironmentVariable(key);
+        if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+        val = Environment.GetEnvironmentVariable(key.Replace(":", "__"));
+        if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+        val = Environment.GetEnvironmentVariable(key.Replace(":", "_"));
+        if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+        return null;
+    }
+
+    public static int ResolveInt(IConfiguration config, string key, int defaultValue, params string[] alternatives)
+    {
+        var raw = ResolveConfig(config, key, alternatives);
+        return int.TryParse(raw, out var parsed) ? parsed : defaultValue;
+    }
 }
 
 public sealed class SupabaseScraperWorker : BackgroundService
@@ -39,6 +70,10 @@ public sealed class SupabaseScraperWorker : BackgroundService
     private readonly IHostApplicationLifetime _lifetime;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private DateTimeOffset _sessionExpires = DateTimeOffset.MinValue;
+    private readonly string _supabaseUrl;
+    private readonly string _publishableKey;
+    private readonly string _scraperEmail;
+    private readonly string? _scraperPassword;
 
     public SupabaseScraperWorker(HttpClient client, IServiceScopeFactory scopes, IConfiguration config,
         ILogger<SupabaseScraperWorker> logger, IHostApplicationLifetime lifetime)
@@ -48,10 +83,23 @@ public sealed class SupabaseScraperWorker : BackgroundService
         _config = config;
         _logger = logger;
         _lifetime = lifetime;
-        var url = config["Supabase:Url"] ?? throw new InvalidOperationException("Supabase:Url is required");
-        _client.BaseAddress = new Uri(url.TrimEnd('/') + "/");
-        _client.DefaultRequestHeaders.Add("apikey", config["Supabase:PublishableKey"]);
+
+        _supabaseUrl = SupabaseScraperHost.ResolveConfig(config, "Supabase:Url", "SUPABASE_URL", "Supabase__Url", "Supabase_Url", "NEXT_PUBLIC_SUPABASE_URL") 
+            ?? "https://pqqymbdbkwltzydymild.supabase.co";
+
+        _publishableKey = SupabaseScraperHost.ResolveConfig(config, "Supabase:PublishableKey", "SUPABASE_PUBLISHABLE_KEY", "Supabase__PublishableKey", "Supabase_PublishableKey", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxcXltYmRia3dsdHp5ZHltaWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NzU4NjksImV4cCI6MjEwNDM1MTg2OX0.P_INOE6YBXa3egTqq_gbkONopQZ3RIlR9rsgd7zqXFw";
+
+        _scraperEmail = SupabaseScraperHost.ResolveConfig(config, "Supabase:ScraperEmail", "SUPABASE_SCRAPER_EMAIL", "Supabase__ScraperEmail", "Supabase_ScraperEmail", "SCRAPER_EMAIL")
+            ?? "scraper@atcis.internal";
+
+        _scraperPassword = SupabaseScraperHost.ResolveConfig(config, "Supabase:ScraperPassword", "SUPABASE_SCRAPER_PASSWORD", "Supabase__ScraperPassword", "Supabase_ScraperPassword", "SCRAPER_PASSWORD");
+
+        _client.BaseAddress = new Uri(_supabaseUrl.TrimEnd('/') + "/");
+        _client.DefaultRequestHeaders.Add("apikey", _publishableKey);
         _client.Timeout = TimeSpan.FromSeconds(60);
+
+        _logger.LogInformation("SupabaseScraperWorker initialized. URL: {Url}, Email: {Email}", _supabaseUrl, _scraperEmail);
     }
 
     protected override async Task ExecuteAsync(CancellationToken cancellation)
@@ -79,7 +127,8 @@ public sealed class SupabaseScraperWorker : BackgroundService
                         {
                             var count = await Scrape(request["pages"]!.GetValue<int>(), cancellation);
                             await UpdateRequest(id, "completed", $"Published {count} tender records", cancellation);
-                            nextCycle = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, _config.GetValue("Scraper:IntervalMinutes", 10)));
+                            var interval = SupabaseScraperHost.ResolveInt(_config, "Scraper:IntervalMinutes", 10, "SCRAPER_INTERVAL_MINUTES", "Scraper__IntervalMinutes", "Scraper_IntervalMinutes");
+                            nextCycle = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, interval));
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
@@ -90,8 +139,10 @@ public sealed class SupabaseScraperWorker : BackgroundService
                 }
                 if (DateTimeOffset.UtcNow >= nextCycle)
                 {
-                    await Scrape(Math.Clamp(_config.GetValue("Scraper:Pages", 5), 1, 50), cancellation);
-                    nextCycle = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, _config.GetValue("Scraper:IntervalMinutes", 10)));
+                    var pages = SupabaseScraperHost.ResolveInt(_config, "Scraper:Pages", 50, "SCRAPER_PAGES", "Scraper__Pages", "Scraper_Pages");
+                    var interval = SupabaseScraperHost.ResolveInt(_config, "Scraper:IntervalMinutes", 10, "SCRAPER_INTERVAL_MINUTES", "Scraper__IntervalMinutes", "Scraper_IntervalMinutes");
+                    await Scrape(Math.Clamp(pages, 1, 50), cancellation);
+                    nextCycle = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, interval));
                 }
                 if (_config.GetValue("Scraper:RunOnce", false)) { _lifetime.StopApplication(); return; }
             }
@@ -108,14 +159,24 @@ public sealed class SupabaseScraperWorker : BackgroundService
     private async Task Authenticate(CancellationToken cancellation)
     {
         if (_sessionExpires > DateTimeOffset.UtcNow.AddMinutes(5)) return;
+        var email = _scraperEmail;
+        var pwd = _scraperPassword ?? SupabaseScraperHost.ResolveConfig(_config, "Supabase:ScraperPassword", "SUPABASE_SCRAPER_PASSWORD", "Supabase__ScraperPassword", "Supabase_ScraperPassword", "SCRAPER_PASSWORD");
+
+        if (string.IsNullOrWhiteSpace(pwd))
+        {
+            _logger.LogWarning("Supabase scraper password is not set. Please ensure Supabase__ScraperPassword is set in Railway Variables.");
+            throw new InvalidOperationException("Supabase scraper password is required");
+        }
+
         using var response = await _client.PostAsJsonAsync("auth/v1/token?grant_type=password", new
         {
-            email = _config["Supabase:ScraperEmail"], password = _config["Supabase:ScraperPassword"]
+            email = email, password = pwd
         }, cancellation);
         response.EnsureSuccessStatusCode();
         var session = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellation);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!["access_token"]!.GetValue<string>());
         _sessionExpires = DateTimeOffset.UtcNow.AddSeconds(session["expires_in"]?.GetValue<int>() ?? 3600);
+        _logger.LogInformation("Successfully authenticated scraper session as {Email}", email);
     }
 
     private async Task UpdateRequest(string id, string status, string message, CancellationToken cancellation)
