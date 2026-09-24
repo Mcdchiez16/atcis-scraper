@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <Content Update="appsettings.Supabase.local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <Compile Remove="ClassifierChecks/**/*.cs" />
+    <Content Remove="ClassifierChecks/**" />
+    <None Remove="ClassifierChecks/**" />
   </ItemGroup>
 
   <ItemGroup>

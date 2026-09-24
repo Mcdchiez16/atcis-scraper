@@ -217,6 +217,7 @@ public sealed class SupabaseScraperWorker : BackgroundService
             payload["id"] = id;
             payload["countryCode"] = "ZW";
             payload["sourcePortal"] = "PRAZ e-GP";
+            TenderClassificationRules.Apply(payload);
             rows.Add(new JsonObject { ["id"] = id, ["source"] = "praz", ["source_id"] = tender.TenderId,
                 ["country"] = "ZW", ["status"] = tender.ClosingDate < DateTime.UtcNow ? "closed" : "live", ["payload"] = payload,
                 ["scraped_at"] = DateTimeOffset.UtcNow });
@@ -235,6 +236,7 @@ public sealed class SupabaseScraperWorker : BackgroundService
             var payload = JsonSerializer.SerializeToNode(tender, JsonOptions)!.AsObject();
             payload["id"] = id;
             payload["countryCode"] = country;
+            TenderClassificationRules.Apply(payload);
             external.Add(new JsonObject { ["id"] = id, ["source"] = source, ["source_id"] = sourceId,
                 ["country"] = country, ["status"] = tender.ClosingDate < DateTime.UtcNow ? "closed" : "live", ["payload"] = payload,
                 ["scraped_at"] = DateTimeOffset.UtcNow });
