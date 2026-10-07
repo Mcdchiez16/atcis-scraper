@@ -1,6 +1,6 @@
 # ========================================================
-# Multi-stage Dockerfile for ATCIS Tender Scraper
-# Optimized for Railway (.NET 8 runtime)
+# Multi-stage Dockerfile for ATCIS Unified Tender Scraper
+# Optimized for Coolify & Railway (.NET 8 + Python Scrapers)
 # ========================================================
 
 # Stage 1: Build & Restore using .NET 8 SDK
@@ -15,19 +15,32 @@ RUN dotnet restore "ZimbabweTenderAPI.csproj"
 COPY . .
 RUN dotnet publish "ZimbabweTenderAPI.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Stage 2: Minimal ASP.NET Core 8.0 Runtime
+# Stage 2: ASP.NET Core 8.0 Runtime with Python 3 + Scraper Tools
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-# Copy compiled output
+# Install Python 3, pip, curl, ca-certificates, and curl_cffi for portal scrapers (ZPPA, AfDB, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --break-system-packages curl_cffi requests
+
+# Copy compiled .NET output
 COPY --from=build /app/publish .
+
+# Copy scripts directory (checked by SupabaseScraperHost)
+COPY scripts/ /scripts/
+COPY scripts/ /app/scripts/
 
 # Container environment
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ScraperOnly=true
 ENV DOTNET_RUNNING_IN_CONTAINER=true
+ENV PORT=8080
 
-# Port is assigned dynamically by Railway via $PORT
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "ZimbabweTenderAPI.dll"]

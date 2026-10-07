@@ -6,3 +6,6 @@ obj/
 .DS_Store
 C:/
 uploads/
+__pycache__/
+*.pyc
+*.pyo

@@ -72,6 +72,7 @@ public sealed class SupabaseScraperWorker : BackgroundService
     private DateTimeOffset _sessionExpires = DateTimeOffset.MinValue;
     private readonly string _supabaseUrl;
     private readonly string _publishableKey;
+    private readonly string? _secretKey;
     private readonly string _scraperEmail;
     private readonly string? _scraperPassword;
 
@@ -90,16 +91,19 @@ public sealed class SupabaseScraperWorker : BackgroundService
         _publishableKey = SupabaseScraperHost.ResolveConfig(config, "Supabase:PublishableKey", "SUPABASE_PUBLISHABLE_KEY", "Supabase__PublishableKey", "Supabase_PublishableKey", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
             ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxcXltYmRia3dsdHp5ZHltaWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NzU4NjksImV4cCI6MjEwNDM1MTg2OX0.P_INOE6YBXa3egTqq_gbkONopQZ3RIlR9rsgd7zqXFw";
 
+        _secretKey = SupabaseScraperHost.ResolveConfig(config, "Supabase:SecretKey", "SUPABASE_SECRET_KEY", "Supabase__SecretKey", "Supabase_SecretKey", "SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY");
+
         _scraperEmail = SupabaseScraperHost.ResolveConfig(config, "Supabase:ScraperEmail", "SUPABASE_SCRAPER_EMAIL", "Supabase__ScraperEmail", "Supabase_ScraperEmail", "SCRAPER_EMAIL")
             ?? "scraper@atcis.internal";
 
         _scraperPassword = SupabaseScraperHost.ResolveConfig(config, "Supabase:ScraperPassword", "SUPABASE_SCRAPER_PASSWORD", "Supabase__ScraperPassword", "Supabase_ScraperPassword", "SCRAPER_PASSWORD");
 
         _client.BaseAddress = new Uri(_supabaseUrl.TrimEnd('/') + "/");
-        _client.DefaultRequestHeaders.Add("apikey", _publishableKey);
+        _client.DefaultRequestHeaders.Add("apikey", !string.IsNullOrWhiteSpace(_secretKey) ? _secretKey : _publishableKey);
         _client.Timeout = TimeSpan.FromSeconds(60);
 
-        _logger.LogInformation("SupabaseScraperWorker initialized. URL: {Url}, Email: {Email}", _supabaseUrl, _scraperEmail);
+        _logger.LogInformation("SupabaseScraperWorker initialized. URL: {Url}, Email: {Email}, UsesServiceKey: {UsesKey}", 
+            _supabaseUrl, _scraperEmail, !string.IsNullOrWhiteSpace(_secretKey));
     }
 
     protected override async Task ExecuteAsync(CancellationToken cancellation)
@@ -159,13 +163,23 @@ public sealed class SupabaseScraperWorker : BackgroundService
     private async Task Authenticate(CancellationToken cancellation)
     {
         if (_sessionExpires > DateTimeOffset.UtcNow.AddMinutes(5)) return;
+
+        // If a Supabase Service Role Key is configured, use it directly (bypasses RLS & avoids auth session expiry)
+        if (!string.IsNullOrWhiteSpace(_secretKey))
+        {
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _secretKey);
+            _sessionExpires = DateTimeOffset.MaxValue;
+            _logger.LogInformation("Successfully configured scraper session using Supabase Service Role Key");
+            return;
+        }
+
         var email = _scraperEmail;
         var pwd = _scraperPassword ?? SupabaseScraperHost.ResolveConfig(_config, "Supabase:ScraperPassword", "SUPABASE_SCRAPER_PASSWORD", "Supabase__ScraperPassword", "Supabase_ScraperPassword", "SCRAPER_PASSWORD");
 
         if (string.IsNullOrWhiteSpace(pwd))
         {
-            _logger.LogWarning("Supabase scraper password is not set. Please ensure Supabase__ScraperPassword is set in Railway Variables.");
-            throw new InvalidOperationException("Supabase scraper password is required");
+            _logger.LogWarning("Supabase scraper password or secret key is not set. Please ensure SUPABASE_SECRET_KEY or SUPABASE_SCRAPER_PASSWORD is set in environment variables.");
+            throw new InvalidOperationException("Supabase authentication credentials (SUPABASE_SECRET_KEY or SUPABASE_SCRAPER_PASSWORD) are required");
         }
 
         using var response = await _client.PostAsJsonAsync("auth/v1/token?grant_type=password", new
@@ -247,13 +261,22 @@ public sealed class SupabaseScraperWorker : BackgroundService
         {
             try
             {
-                var scriptPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "scripts", scriptName);
-                if (File.Exists(scriptPath))
+                var candidates = new[]
+                {
+                    Path.Combine(Directory.GetCurrentDirectory(), "..", "scripts", scriptName),
+                    Path.Combine(Directory.GetCurrentDirectory(), "scripts", scriptName),
+                    Path.Combine("/scripts", scriptName),
+                    Path.Combine(AppContext.BaseDirectory, "..", "scripts", scriptName),
+                    Path.Combine(AppContext.BaseDirectory, "scripts", scriptName)
+                };
+                var scriptPath = candidates.FirstOrDefault(File.Exists);
+                if (scriptPath != null)
                 {
                     var psi = new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = "python3",
                         Arguments = $"\"{scriptPath}\"",
+                        WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(scriptPath))!,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
@@ -262,9 +285,22 @@ public sealed class SupabaseScraperWorker : BackgroundService
                     using var p = System.Diagnostics.Process.Start(psi);
                     if (p != null)
                     {
+                        var stderrTask = p.StandardError.ReadToEndAsync(cancellation);
                         await p.WaitForExitAsync(cancellation);
-                        _logger.LogInformation("{ScriptName} scraper completed in cycle with code {Code}", scriptName, p.ExitCode);
+                        var stderr = await stderrTask;
+                        if (p.ExitCode == 0)
+                        {
+                            _logger.LogInformation("✅ {ScriptName} scraper completed successfully in cycle", scriptName);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("⚠️ {ScriptName} scraper exited with code {Code}. Stderr: {Error}", scriptName, p.ExitCode, stderr?.Trim());
+                        }
                     }
+                }
+                else
+                {
+                    _logger.LogDebug("Script {ScriptName} not found in searched locations; skipping Python execution.", scriptName);
                 }
             }
             catch (Exception ex)
