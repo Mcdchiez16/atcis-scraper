@@ -1,0 +1,2 @@
+[functions.send-tender-alert]
+verify_jwt = false

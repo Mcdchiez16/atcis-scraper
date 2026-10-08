@@ -1,25 +1,24 @@
 # ========================================================
 # Multi-stage Dockerfile for ATCIS Unified Tender Scraper
-# Optimized for Coolify & Railway (.NET 8 + Python Scrapers)
+# Optimized for Coolify Root Deployment (.NET 8 + Python Scrapers)
 # ========================================================
 
-# Stage 1: Build & Restore using .NET 8 SDK
+# Stage 1: Build & Restore .NET Application
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy project file and restore dependencies first for caching
-COPY ["ZimbabweTenderAPI.csproj", "./"]
-RUN dotnet restore "ZimbabweTenderAPI.csproj"
+COPY ["ZimbabweTenderAPI/ZimbabweTenderAPI.csproj", "ZimbabweTenderAPI/"]
+RUN dotnet restore "ZimbabweTenderAPI/ZimbabweTenderAPI.csproj"
 
-# Copy remaining source code and publish release binary
-COPY . .
+COPY ZimbabweTenderAPI/ ZimbabweTenderAPI/
+WORKDIR /src/ZimbabweTenderAPI
 RUN dotnet publish "ZimbabweTenderAPI.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Stage 2: ASP.NET Core 8.0 Runtime with Python 3 + Scraper Tools
+# Stage 2: Runtime Container (.NET 8 + Python 3 with curl_cffi for portal scrapers)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-# Install Python 3, pip, curl, ca-certificates, and curl_cffi for portal scrapers (ZPPA, AfDB, etc.)
+# Install Python 3, pip, curl, ca-certificates, and scraping dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -28,14 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --break-system-packages curl_cffi requests
 
-# Copy compiled .NET output
+# Copy compiled .NET application
 COPY --from=build /app/publish .
 
-# Copy scripts directory (checked by SupabaseScraperHost)
+# Copy scripts folder to both /scripts and /app/scripts
 COPY scripts/ /scripts/
 COPY scripts/ /app/scripts/
 
-# Container environment
+# Environment defaults for Scraper-only daemon
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ScraperOnly=true
 ENV DOTNET_RUNNING_IN_CONTAINER=true
