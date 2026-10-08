@@ -11,3 +11,5 @@ appsettings.*.local.json
 .vs/
 .git/
 uploads/
+supabase/.temp/
+supabase/local-backup.sqlite*
