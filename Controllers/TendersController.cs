@@ -1091,7 +1091,15 @@ Respond with a strictly formatted JSON object with NO surrounding markdown backt
   ""bidDecision"": ""STRONG_BID""
 }}";
 
-                var apiKey = config["Gemini:ApiKey"] ?? "AIzaSyDATB5TBbinPMq-bjZgcDiYo3miJZVx0Cg";
+                var apiKey = config["Gemini:ApiKey"];
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    return StatusCode(503, new ApiResponse<TenderDocumentAnalysisResponse>
+                    {
+                        Success = false,
+                        Message = "Gemini AI is not configured. Set GEMINI_API_KEY in the runtime environment."
+                    });
+                }
                 var modelName = config["Gemini:ModelName"] ?? "gemini-2.5-flash";
                 var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
 

@@ -341,33 +341,8 @@ namespace ZimbabweTenderAPI.Data
                 }
             );
 
-            // Seed default admin user
-            modelBuilder.Entity<UserEntity>().HasData(
-                new UserEntity
-                {
-                    Id = 1,
-                    Username = "admin",
-                    Email = "admin@tendersystem.com",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"), // Change in production!
-                    FirstName = "System",
-                    LastName = "Administrator",
-                    IsActive = true,
-                    EmailConfirmed = true,
-                    RefreshToken = null,
-                    RefreshTokenExpiryTime = null,
-                    LastLoginAt = null,
-                    LastLoginIP = null,
-                    FailedLoginAttempts = 0,
-                    LockoutEnd = null,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = "System",
-                    IsDeleted = false,
-                    UpdatedBy = null,
-                    UpdatedAt = null,
-                    DeletedBy = null,
-                    DeletedAt = null
-                }
-            );
+            // Administrative identities are provisioned through the authenticated
+            // administration workflow. Never seed a shared default password.
 
             // Assign all roles to default admin user (full access to everything)
             modelBuilder.Entity<UserRoleEntity>().HasData(

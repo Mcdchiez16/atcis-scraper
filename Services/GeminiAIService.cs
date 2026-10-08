@@ -47,18 +47,10 @@ namespace ZimbabweTenderAPI.Services
             // Get configuration from appsettings.json
             _defaultConfig = configuration.GetSection("Gemini").Get<GeminiConfig>() ?? new GeminiConfig();
 
-            // DEBUG: Log configuration details
-            _logger.LogInformation("=== Gemini Configuration ===");
-            _logger.LogInformation($"ApiKey configured: {!string.IsNullOrEmpty(_defaultConfig.ApiKey)}");
-            _logger.LogInformation($"ApiKey length: {_defaultConfig.ApiKey?.Length ?? 0}");
-            if (!string.IsNullOrEmpty(_defaultConfig.ApiKey))
-            {
-                _logger.LogInformation($"ApiKey starts with: {_defaultConfig.ApiKey.Substring(0, Math.Min(6, _defaultConfig.ApiKey.Length))}");
-                _logger.LogInformation($"ApiKey ends with: {_defaultConfig.ApiKey.Substring(Math.Max(0, _defaultConfig.ApiKey.Length - 4))}");
-            }
-            _logger.LogInformation($"ModelName: {_defaultConfig.ModelName}");
-            _logger.LogInformation($"Temperature: {_defaultConfig.Temperature}");
-            _logger.LogInformation($"MaxOutputTokens: {_defaultConfig.MaxOutputTokens}");
+            _logger.LogInformation(
+                "Gemini configuration loaded. Configured: {Configured}, Model: {ModelName}",
+                !string.IsNullOrWhiteSpace(_defaultConfig.ApiKey),
+                _defaultConfig.ModelName);
 
             // Check if API key looks valid (real Gemini keys typically start with AIza and are 39+ characters)
             _hasValidApiKey = IsValidApiKey(_defaultConfig.ApiKey);
@@ -66,7 +58,7 @@ namespace ZimbabweTenderAPI.Services
             if (!_hasValidApiKey)
             {
                 _logger.LogWarning("Gemini API key not configured or invalid. Using mock responses.");
-                _logger.LogWarning($"Key validation failed. Key present: {!string.IsNullOrEmpty(_defaultConfig.ApiKey)}, Length: {_defaultConfig.ApiKey?.Length ?? 0}");
+                _logger.LogWarning("Gemini key validation failed; no credential details will be logged.");
             }
             else
             {
@@ -87,11 +79,11 @@ namespace ZimbabweTenderAPI.Services
             {
                 // Allow ALL keys that match the format, even example ones
                 // Let the API call itself determine if it's valid
-                _logger.LogInformation($"API key format valid: starts with AIza, length {apiKey.Length}");
+                _logger.LogInformation("Gemini API key format validation passed.");
                 return true;
             }
 
-            _logger.LogWarning($"API key format invalid. Should start with 'AIza' and be 39+ chars. Got: {apiKey?.Substring(0, Math.Min(10, apiKey?.Length ?? 0))}...");
+            _logger.LogWarning("Gemini API key format is invalid.");
             return false;
         }
 

@@ -1,4 +1,8 @@
 appsettings.Supabase.local.json
+appsettings.*.local.json
+.env
+.env.*
+!.env.example
 bin/
 obj/
 *.db*
@@ -9,3 +13,4 @@ uploads/
 __pycache__/
 *.pyc
 *.pyo
+.vercel/
