@@ -4,6 +4,9 @@ obj/
 *.db-shm
 *.db-wal
 appsettings.Supabase.local.json
+appsettings.*.local.json
+.env
+.env.*
 .DS_Store
 .vs/
 .git/

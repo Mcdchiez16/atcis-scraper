@@ -89,7 +89,7 @@ public sealed class SupabaseScraperWorker : BackgroundService
             ?? "https://pqqymbdbkwltzydymild.supabase.co";
 
         _publishableKey = SupabaseScraperHost.ResolveConfig(config, "Supabase:PublishableKey", "SUPABASE_PUBLISHABLE_KEY", "Supabase__PublishableKey", "Supabase_PublishableKey", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
-            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxcXltYmRia3dsdHp5ZHltaWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NzU4NjksImV4cCI6MjEwNDM1MTg2OX0.P_INOE6YBXa3egTqq_gbkONopQZ3RIlR9rsgd7zqXFw";
+            ?? string.Empty;
 
         _secretKey = SupabaseScraperHost.ResolveConfig(config, "Supabase:SecretKey", "SUPABASE_SECRET_KEY", "Supabase__SecretKey", "Supabase_SecretKey", "SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY");
 
@@ -98,8 +98,15 @@ public sealed class SupabaseScraperWorker : BackgroundService
 
         _scraperPassword = SupabaseScraperHost.ResolveConfig(config, "Supabase:ScraperPassword", "SUPABASE_SCRAPER_PASSWORD", "Supabase__ScraperPassword", "Supabase_ScraperPassword", "SCRAPER_PASSWORD");
 
+        var requestKey = !string.IsNullOrWhiteSpace(_secretKey) ? _secretKey : _publishableKey;
+        if (string.IsNullOrWhiteSpace(requestKey))
+        {
+            throw new InvalidOperationException(
+                "Supabase credentials are missing. Set SUPABASE_SECRET_KEY, or set SUPABASE_PUBLISHABLE_KEY with the scraper account credentials.");
+        }
+
         _client.BaseAddress = new Uri(_supabaseUrl.TrimEnd('/') + "/");
-        _client.DefaultRequestHeaders.Add("apikey", !string.IsNullOrWhiteSpace(_secretKey) ? _secretKey : _publishableKey);
+        _client.DefaultRequestHeaders.Add("apikey", requestKey);
         _client.Timeout = TimeSpan.FromSeconds(60);
 
         _logger.LogInformation("SupabaseScraperWorker initialized. URL: {Url}, Email: {Email}, UsesServiceKey: {UsesKey}", 

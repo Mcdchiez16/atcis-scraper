@@ -21,6 +21,26 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Supabase.local.json", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables().AddCommandLine(args);
+
+// Support conventional secret names used by deployment platforms without
+// storing credentials in appsettings.json. Native .NET names such as
+// Gemini__ApiKey continue to work and take precedence.
+foreach (var (configurationKey, environmentKey) in new[]
+{
+    ("Gemini:ApiKey", "GEMINI_API_KEY"),
+    ("JwtSettings:SecretKey", "JWT_SECRET_KEY"),
+    ("EmailSettings:Username", "SMTP_USERNAME"),
+    ("EmailSettings:Password", "SMTP_PASSWORD")
+})
+{
+    var environmentValue = Environment.GetEnvironmentVariable(environmentKey);
+    if (string.IsNullOrWhiteSpace(builder.Configuration[configurationKey]) &&
+        !string.IsNullOrWhiteSpace(environmentValue))
+    {
+        builder.Configuration[configurationKey] = environmentValue;
+    }
+}
+
 if (builder.Configuration.GetValue<bool>("ScraperOnly"))
 {
     await SupabaseScraperHost.RunAsync(builder);
@@ -55,6 +75,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // ============ AUTHENTICATION & AUTHORIZATION ============
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"];
+if (string.IsNullOrWhiteSpace(secretKey) || Encoding.UTF8.GetByteCount(secretKey) < 32)
+{
+    throw new InvalidOperationException(
+        "JWT signing secret is missing or too short. Set JWT_SECRET_KEY or JwtSettings__SecretKey to at least 32 bytes.");
+}
 
 builder.Services.AddAuthentication(options =>
 {

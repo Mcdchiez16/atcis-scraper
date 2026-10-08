@@ -385,13 +385,7 @@ namespace ZimbabweTenderAPI.Controllers
             <button class='refresh-btn' onclick='checkApiStatus()' style='background: #6c757d;'>🔑 Check API Status</button>
         </div>
     </div>" +
-    (apiKeyStatus == "example" ? @"
-    <div class='danger'>
-        <strong>❌ Example/Test API Key Detected:</strong> The configured API key appears to be an example/test key.
-        <br><small>Current Key: " + (_geminiConfig.ApiKey?.Substring(0, Math.Min(20, _geminiConfig.ApiKey?.Length ?? 0)) + "...") + @"</small>
-        <br><strong>Get a real API key:</strong> <span class='api-help-link' onclick='showApiHelp()'>Click here for instructions</span>
-    </div>" :
-    apiKeyStatus == "invalid" ? @"
+    (apiKeyStatus == "invalid" ? @"
     <div class='warning'>
         <strong>⚠️ Invalid API Key Format:</strong> The API key doesn't appear to be in the correct format.
         <br><small>Expected: Starts with 'AIza' and 39+ characters</small>
@@ -399,7 +393,7 @@ namespace ZimbabweTenderAPI.Controllers
     </div>" :
     apiKeyStatus == "missing" ? @"
     <div class='warning'>
-        <strong>⚠️ No API Key Configured:</strong> Configure GEMINI_API_KEY in appsettings.json for real AI analysis.
+        <strong>⚠️ No API Key Configured:</strong> Configure GEMINI_API_KEY in the runtime environment for real AI analysis.
         <br><small>Current Model: " + _geminiConfig.ModelName + @" | Temperature: " + _geminiConfig.Temperature + @" | Max Tokens: " + _geminiConfig.MaxOutputTokens + @"</small>
     </div>" : @"
     <div class='success'>
@@ -416,16 +410,7 @@ namespace ZimbabweTenderAPI.Controllers
                 <li>Click 'Create API Key' in the left sidebar</li>
                 <li>Select 'Create API Key in new project'</li>
                 <li>Copy your new API key (it will start with 'AIza' and be 39+ characters)</li>
-                <li>Update your appsettings.json file:
-                    <pre><code>{
-  ""Gemini"": {
-    ""ApiKey"": ""YOUR_REAL_API_KEY_HERE"",
-    ""ModelName"": ""gemini-1.5-pro"",
-    ""Temperature"": 0.2,
-    ""MaxOutputTokens"": 2000
-  }
-}</code></pre>
-                </li>
+                <li>Set the key as the GEMINI_API_KEY runtime environment variable.</li>
                 <li>Restart your application</li>
             </ol>
             <button class='refresh-btn' onclick='hideApiHelp()' style='background: #95a5a6;'>Close Instructions</button>
@@ -635,9 +620,6 @@ namespace ZimbabweTenderAPI.Controllers
             if (string.IsNullOrEmpty(apiKey))
                 return "missing";
 
-            if (apiKey == "AIzaSyCMOL5D9Lsjbde9TbMGpuwaUVy879OGc9A")
-                return "example";
-
             if (apiKey.StartsWith("AIza") && apiKey.Length >= 39)
                 return "valid";
 
@@ -812,7 +794,6 @@ namespace ZimbabweTenderAPI.Controllers
                 var statusMessage = apiKeyStatus switch
                 {
                     "valid" => "Gemini API key is configured and valid",
-                    "example" => "Gemini API key appears to be an example/test key",
                     "invalid" => "Gemini API key format is invalid",
                     "missing" => "Gemini API key is not configured",
                     _ => "Unknown API key status"
@@ -828,11 +809,7 @@ namespace ZimbabweTenderAPI.Controllers
                         status = apiKeyStatus,
                         modelName = _geminiConfig.ModelName,
                         temperature = _geminiConfig.Temperature,
-                        maxOutputTokens = _geminiConfig.MaxOutputTokens,
-                        keyLength = _geminiConfig.ApiKey?.Length ?? 0,
-                        keyPreview = !string.IsNullOrEmpty(_geminiConfig.ApiKey)
-                            ? $"{_geminiConfig.ApiKey.Substring(0, Math.Min(8, _geminiConfig.ApiKey.Length))}..."
-                            : null
+                        maxOutputTokens = _geminiConfig.MaxOutputTokens
                     }
                 });
             }
@@ -856,7 +833,7 @@ namespace ZimbabweTenderAPI.Controllers
                 var config = _geminiConfig;
                 var testPrompt = "Hello, are you working? Just say 'Yes' if you can read this.";
 
-                _logger.LogInformation($"Testing Gemini API directly with key: {config.ApiKey?.Substring(0, Math.Min(8, config.ApiKey?.Length ?? 0))}...");
+                _logger.LogInformation("Testing Gemini API connectivity for model {ModelName}", config.ModelName);
 
                 var url = $"https://generativelanguage.googleapis.com/v1beta/models/{config.ModelName}:generateContent?key={config.ApiKey}";
 
@@ -895,9 +872,7 @@ namespace ZimbabweTenderAPI.Controllers
                         status = "error",
                         statusCode = (int)response.StatusCode,
                         statusText = response.StatusCode.ToString(),
-                        error = errorContent,
-                        keyPreview = config.ApiKey?.Substring(0, Math.Min(8, config.ApiKey?.Length ?? 0)) + "...",
-                        keyLength = config.ApiKey?.Length ?? 0
+                        error = errorContent
                     });
                 }
 
@@ -907,8 +882,6 @@ namespace ZimbabweTenderAPI.Controllers
                 {
                     status = "success",
                     message = "Gemini API is working!",
-                    keyPreview = config.ApiKey?.Substring(0, Math.Min(8, config.ApiKey?.Length ?? 0)) + "...",
-                    keyLength = config.ApiKey?.Length ?? 0,
                     response = JsonSerializer.Deserialize<object>(responseJson)
                 });
             }
