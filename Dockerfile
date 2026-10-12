@@ -7,11 +7,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-COPY ["ZimbabweTenderAPI/ZimbabweTenderAPI.csproj", "ZimbabweTenderAPI/"]
-RUN dotnet restore "ZimbabweTenderAPI/ZimbabweTenderAPI.csproj"
+COPY ["ZimbabweTenderAPI.csproj", "./"]
+RUN dotnet restore "ZimbabweTenderAPI.csproj"
 
-COPY ZimbabweTenderAPI/ ZimbabweTenderAPI/
-WORKDIR /src/ZimbabweTenderAPI
+# The Git repository root is already the .NET project directory.
+COPY . .
 RUN dotnet publish "ZimbabweTenderAPI.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # Stage 2: Runtime Container (.NET 8 + Python 3 with curl_cffi for portal scrapers)
