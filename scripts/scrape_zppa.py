@@ -43,6 +43,8 @@ if os.path.exists(env_path):
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL") or env_vars.get("NEXT_PUBLIC_SUPABASE_URL") or env_vars.get("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_KEY") or env_vars.get("SUPABASE_SECRET_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") or env_vars.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or env_vars.get("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or env_vars.get("OPENAI_API_KEY")
+AI_PRIMARY_PROVIDER = (os.getenv("AI_PRIMARY_PROVIDER") or env_vars.get("AI_PRIMARY_PROVIDER") or "openai").strip().lower()
 
 ZPPA_BASE = "https://eprocure.zppa.org.zm"
 SEARCH_PREP_URL = f"{ZPPA_BASE}/epps/prepareCurrentOpportunities.do?currentType=cft"
@@ -95,10 +97,66 @@ def parse_zambia_date(date_str: str) -> str:
     return clean
 
 
+def solve_captcha_openai(image_bytes: bytes) -> str:
+    """Uses OpenAI Vision (gpt-4o-mini / gpt-4o) to solve the ZPPA 6-character captcha."""
+    if not OPENAI_API_KEY:
+        return ""
+
+    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+    candidate_models = ["gpt-4o-mini", "gpt-4o"]
+
+    for model_name in candidate_models:
+        payload = {
+            "model": model_name,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Output ONLY the alphanumeric characters shown in this captcha image as a single lowercase word with no punctuation, markdown, or spaces. Example: a1b2c3"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{b64_data}"
+                        }
+                    }
+                ]
+            }],
+            "temperature": 0.0,
+            "max_tokens": 10
+        }
+        try:
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {OPENAI_API_KEY}"
+                },
+                json=payload,
+                timeout=12
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                raw = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                code = re.sub(r"[^a-zA-Z0-9]", "", raw).strip().lower()
+                if len(code) >= 4:
+                    return code
+            elif resp.status_code == 429:
+                print(f"OpenAI model {model_name} rate limit (429), trying fallback...", file=sys.stderr)
+                time.sleep(0.5)
+                continue
+            else:
+                print(f"OpenAI error {resp.status_code}: {resp.text[:120]}", file=sys.stderr)
+        except Exception as e:
+            print(f"Error calling OpenAI ({model_name}): {e}", file=sys.stderr)
+
+    return ""
+
+
 def solve_captcha_gemini(image_bytes: bytes) -> str:
     """Uses Gemini to solve the ZPPA 6-character captcha with fallback models."""
     if not GEMINI_API_KEY:
-        print("Warning: GEMINI_API_KEY not found, cannot solve captcha with AI", file=sys.stderr)
         return ""
 
     b64_data = base64.b64encode(image_bytes).decode("utf-8")
@@ -144,9 +202,29 @@ def solve_captcha_gemini(image_bytes: bytes) -> str:
             else:
                 print(f"Gemini model {model_name} error {resp.status_code}: {resp.text[:120]}", file=sys.stderr)
         except Exception as e:
-            print(f"Error calling {model_name}: {e}", file=sys.stderr)
+            print(f"Error calling Gemini ({model_name}): {e}", file=sys.stderr)
 
     return ""
+
+
+def solve_captcha(image_bytes: bytes) -> tuple[str, str]:
+    """Solves ZPPA captcha using configured primary provider (OpenAI by default) with automatic fallback.
+    Returns: (captcha_code, provider_name)
+    """
+    order = ["openai", "gemini"] if AI_PRIMARY_PROVIDER != "gemini" else ["gemini", "openai"]
+
+    for provider in order:
+        if provider == "openai" and OPENAI_API_KEY:
+            code = solve_captcha_openai(image_bytes)
+            if code and len(code) >= 4:
+                return code, "OpenAI"
+        elif provider == "gemini" and GEMINI_API_KEY:
+            code = solve_captcha_gemini(image_bytes)
+            if code and len(code) >= 4:
+                return code, "Gemini"
+
+    print("Warning: Failed to solve captcha with all available AI providers (OpenAI / Gemini)", file=sys.stderr)
+    return "", ""
 
 
 class ZppaSession:
@@ -180,14 +258,14 @@ class ZppaSession:
                     continue
 
                 # 3. Solve captcha
-                captcha_code = solve_captcha_gemini(r_img.content)
+                captcha_code, provider_name = solve_captcha(r_img.content)
                 if not captcha_code or len(captcha_code) < 4:
                     print("  Failed to extract captcha text, retrying...")
                     time.sleep(1)
                     continue
 
                 self.last_captcha = captcha_code
-                print(f"  Solved CAPTCHA: '{captcha_code}'")
+                print(f"  Solved CAPTCHA via {provider_name}: '{captcha_code}'")
 
                 # 4. POST search action
                 form_data = {
