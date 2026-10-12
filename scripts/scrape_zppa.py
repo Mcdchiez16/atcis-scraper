@@ -590,6 +590,7 @@ def upsert_to_supabase(records: list[dict]) -> bool:
     }
 
     total = len(records)
+    succeeded = True
     for i in range(0, total, 40):
         chunk = records[i:i + 40]
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/tenders?on_conflict=id"
@@ -599,11 +600,12 @@ def upsert_to_supabase(records: list[dict]) -> bool:
                 print(f"  Successfully upserted {i + len(chunk)}/{total} records to Supabase")
             else:
                 print(f"  Failed upserting chunk {i}: {res.status_code} {res.text}", file=sys.stderr)
+                succeeded = False
         except Exception as e:
             print(f"  Error communicating with Supabase: {e}", file=sys.stderr)
             return False
 
-    return True
+    return succeeded
 
 
 def build_supabase_record(tender_summary: dict, tender_detail: dict | None = None) -> dict:
@@ -743,7 +745,7 @@ def build_supabase_record(tender_summary: dict, tender_detail: dict | None = Non
 
 def main():
     parser = argparse.ArgumentParser(description="ZPPA Zambia e-Procurement Scraper")
-    parser.add_argument("--pages", type=int, default=5, help="Number of listing pages to scrape (0 for all)")
+    parser.add_argument("--pages", type=int, default=0, help="Number of listing pages to scrape (0 for all)")
     parser.add_argument("--detail", type=str, help="Scrape and output JSON detail for a single resource ID")
     parser.add_argument("--enrich", action="store_true", help="Fetch complete details for every scraped listing")
     args = parser.parse_args()
@@ -765,24 +767,34 @@ def main():
 
     # Detect total count and pages
     count_m = re.search(r"(\d+)\s+results in total", initial_html, re.I)
-    total_results = int(count_m.group(1)) if count_m else 220
-    total_pages = (total_results + 9) // 10
-    print(f"Total live tenders available: {total_results} (~{total_pages} pages)")
+    total_results = int(count_m.group(1)) if count_m else None
+    total_pages = (total_results + 9) // 10 if total_results is not None else None
+    if total_pages is not None:
+        print(f"Total live tenders available: {total_results} (~{total_pages} pages)")
+    else:
+        print("The portal did not report a total; scraping until an empty or repeated page is reached.")
 
-    pages_to_scrape = total_pages if args.pages <= 0 else min(args.pages, total_pages)
-    print(f"Scraping {pages_to_scrape} pages of active opportunities...")
+    page_limit = total_pages if args.pages <= 0 else args.pages
+    if total_pages is not None and page_limit is not None:
+        page_limit = min(page_limit, total_pages)
+    print(f"Scraping {page_limit if page_limit is not None else 'all available'} pages of active opportunities...")
 
     all_summaries = []
     seen_ids = set()
 
-    for p in range(1, pages_to_scrape + 1):
-        print(f"Fetching search results page {p}/{pages_to_scrape}...")
+    p = 1
+    while page_limit is None or p <= page_limit:
+        print(f"Fetching search results page {p}/{page_limit if page_limit is not None else '?'}...")
         html = initial_html if p == 1 else zppa.get_page(p)
         if not html:
-            print(f"  Empty response for page {p}, skipping")
-            continue
+            print(f"  Empty response for page {p}; pagination is complete")
+            break
 
         page_tenders = parse_search_results_page(html)
+        if not page_tenders:
+            print(f"  Page {p} contains no tenders; pagination is complete")
+            break
+
         new_on_page = 0
         for t in page_tenders:
             rid = t["resource_id"]
@@ -792,6 +804,10 @@ def main():
                 new_on_page += 1
 
         print(f"  Page {p}: found {len(page_tenders)} tenders ({new_on_page} new). Total collected: {len(all_summaries)}")
+        if new_on_page == 0:
+            print(f"  Page {p} repeated previously collected tenders; stopping pagination")
+            break
+        p += 1
         time.sleep(0.4)
 
     print(f"\nCollected {len(all_summaries)} unique live tenders from ZPPA.")
@@ -818,6 +834,7 @@ def main():
         print("=== ZPPA Zambia Live Tender Scraper Completed Successfully! ===")
     else:
         print("Warning: Upsert completed with errors or Supabase credentials missing.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -182,15 +182,21 @@ def upsert_to_supabase(records):
     }
 
     # Batch into chunks of 50
+    succeeded = True
     for i in range(0, len(records), 50):
         chunk = records[i:i+50]
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/tenders?on_conflict=id"
-        res = requests.post(url, headers=headers, data=json.dumps(chunk))
-        if res.status_code not in (200, 201, 204):
-            print(f"Failed upserting chunk {i}: {res.status_code} {res.text}", file=sys.stderr)
-        else:
-            print(f"Upserted chunk {i} to {i + len(chunk)}")
-    return True
+        try:
+            res = requests.post(url, headers=headers, data=json.dumps(chunk))
+            if res.status_code not in (200, 201, 204):
+                print(f"Failed upserting chunk {i}: {res.status_code} {res.text}", file=sys.stderr)
+                succeeded = False
+            else:
+                print(f"Upserted chunk {i} to {i + len(chunk)}")
+        except Exception as ex:
+            print(f"Failed upserting chunk {i}: {ex}", file=sys.stderr)
+            succeeded = False
+    return succeeded
 
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--detail":
@@ -207,16 +213,26 @@ def main():
 
     print("--- Starting AfDB Zimbabwe Scraper ---")
     all_notices = []
-    
-    # Scrape all 12 pages (0 to 11)
-    for p in range(12):
+    seen_slugs = set()
+    p = 0
+
+    # Continue until AfDB returns an empty page or repeats the previous listing.
+    while True:
         print(f"Fetching listing page {p}...")
         notices = scrape_afdb_page(p)
         if not notices:
             print(f"No notices on page {p}, stopping pagination.")
             break
-        all_notices.extend(notices)
-        print(f"  Page {p}: {len(notices)} notices found. (Total so far: {len(all_notices)})")
+
+        new_notices = [notice for notice in notices if notice["slug"] not in seen_slugs]
+        if not new_notices:
+            print(f"Page {p} repeated previously collected notices, stopping pagination.")
+            break
+
+        seen_slugs.update(notice["slug"] for notice in new_notices)
+        all_notices.extend(new_notices)
+        print(f"  Page {p}: {len(new_notices)} new notices found. (Total so far: {len(all_notices)})")
+        p += 1
         time.sleep(0.3)
 
     print(f"Total AfDB Zimbabwe notices collected: {len(all_notices)}")
@@ -332,7 +348,8 @@ def main():
         deduped_rows.append(row)
 
     print(f"Upserting {len(deduped_rows)} AfDB records into Supabase...")
-    upsert_to_supabase(deduped_rows)
+    if not upsert_to_supabase(deduped_rows):
+        sys.exit(1)
     print("AfDB Zimbabwe procurement synchronization completed successfully!")
 
 if __name__ == "__main__":

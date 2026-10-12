@@ -6,7 +6,7 @@ https://search.worldbank.org/api/v2/procnotices
 
 Filters strictly by:
 - Zimbabwe: project_ctry_name_exact=Zimbabwe (419 notices)
-- Zambia: project_ctry_name_exact=Zambia (1800+ notices, fetches top 100 recent)
+- Zambia: project_ctry_name_exact=Zambia (all available notices)
 
 Extracts:
 - Official World Bank Notice ID (e.g. OP00434937, OP00434950, OP00425362)
@@ -75,14 +75,15 @@ def parse_iso_or_flexible_date(raw: str):
             pass
     return None
 
-def fetch_country_notices(country_name: str, country_code: str, max_count: int = 500):
+def fetch_country_notices(country_name: str, country_code: str):
     all_notices = []
+    seen_ids = set()
     page_size = 100
     offset = 0
 
     print(f"\n[World Bank] Querying official notices for {country_name} ({country_code})...")
 
-    while offset < max_count:
+    while True:
         url = f"{API_BASE}?format=json&rows={page_size}&os={offset}&project_ctry_name_exact={country_name}"
         try:
             resp = requests.get(url, headers=HEADERS, timeout=20, impersonate="chrome120")
@@ -103,11 +104,23 @@ def fetch_country_notices(country_name: str, country_code: str, max_count: int =
             if not notices:
                 break
 
-            all_notices.extend(notices)
+            new_notices = []
+            for notice in notices:
+                notice_id = str(notice.get("id") or "").strip()
+                if not notice_id or notice_id in seen_ids:
+                    continue
+                seen_ids.add(notice_id)
+                new_notices.append(notice)
+
+            if not new_notices:
+                print(f"  Offset {offset} repeated previously collected notices; stopping pagination.")
+                break
+
+            all_notices.extend(new_notices)
             print(f"  Fetched {len(all_notices)} / {total} notices (offset {offset})")
 
             offset += page_size
-            if offset >= total:
+            if (total and offset >= total) or (not total and len(notices) < page_size):
                 break
 
             time.sleep(0.3)
@@ -329,7 +342,7 @@ def build_records(notices, country_name: str, country_code: str):
 def upsert_to_supabase(records):
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("[World Bank] Missing Supabase credentials, skipping database upload.")
-        return
+        return False
 
     headers = {
         "apikey": SUPABASE_KEY,
@@ -357,14 +370,14 @@ def upsert_to_supabase(records):
             print(f"  Batch {i // batch_size + 1} exception: {e}")
 
     print(f"[World Bank] Successfully synchronized {uploaded} World Bank procurement records!")
+    return uploaded == len(records)
 
 def main():
-    # 1. Fetch Zimbabwe (all 419 notices)
-    zw_notices = fetch_country_notices("Zimbabwe", "ZW", max_count=500)
+    # Fetch every page reported by the official World Bank API for both markets.
+    zw_notices = fetch_country_notices("Zimbabwe", "ZW")
     zw_records = build_records(zw_notices, "Zimbabwe", "ZW")
 
-    # 2. Fetch Zambia (top 100 notices)
-    zm_notices = fetch_country_notices("Zambia", "ZM", max_count=100)
+    zm_notices = fetch_country_notices("Zambia", "ZM")
     zm_records = build_records(zm_notices, "Zambia", "ZM")
 
     all_records = zw_records + zm_records
@@ -378,7 +391,8 @@ def main():
         print(f"   Title: {p['title']}")
         print(f"   Published: {p['publishDate']} | Deadline: {p['closingDate']} | URL: {p['portalUrl']}")
 
-    upsert_to_supabase(all_records)
+    if not upsert_to_supabase(all_records):
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

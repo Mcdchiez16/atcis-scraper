@@ -249,14 +249,38 @@ def fetch_onlinetenders_page(page_num: int):
         print(f"Error fetching page {page_num}: {ex}")
         return page_num, []
 
-def scrape_all_onlinetenders(max_pages=40):
-    print(f"Scraping OnlineTenders Zimbabwe (up to {max_pages} pages)...")
+def scrape_all_onlinetenders():
+    print("Scraping all available OnlineTenders Zimbabwe pages...")
     all_items = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        results = list(executor.map(fetch_onlinetenders_page, range(1, max_pages + 1)))
+    seen_ids = set()
+    next_page = 1
+    batch_size = 8
 
-    for p, items in sorted(results):
-        all_items.extend(items)
+    while True:
+        page_numbers = list(range(next_page, next_page + batch_size))
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
+            results = list(executor.map(fetch_onlinetenders_page, page_numbers))
+
+        reached_end = False
+        for page_num, items in sorted(results):
+            if not items:
+                print(f"Page {page_num} has no notices; pagination is complete.")
+                reached_end = True
+                break
+
+            new_items = [item for item in items if item["tid"] not in seen_ids]
+            if not new_items:
+                print(f"Page {page_num} repeated previously collected notices; stopping pagination.")
+                reached_end = True
+                break
+
+            seen_ids.update(item["tid"] for item in new_items)
+            all_items.extend(new_items)
+            print(f"  Page {page_num}: {len(new_items)} new notices (Total: {len(all_items)})")
+
+        if reached_end:
+            break
+        next_page += batch_size
 
     print(f"Total raw notices scraped: {len(all_items)}")
     return all_items
@@ -367,7 +391,7 @@ def build_supabase_records(items):
 def upsert_to_supabase(records):
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("Missing Supabase credentials, skipping database upload.")
-        return
+        return False
 
     headers = {
         "apikey": SUPABASE_KEY,
@@ -380,6 +404,7 @@ def upsert_to_supabase(records):
     # reinserted and emailed as new tenders after every scrape.
     print(f"Uploading {len(records)} clean OnlineTenders records to Supabase in batches...")
     batch_size = 50
+    succeeded = True
     for i in range(0, len(records), batch_size):
         batch = records[i:i + batch_size]
         url = f"{SUPABASE_URL}/rest/v1/tenders?on_conflict=id"
@@ -389,13 +414,16 @@ def upsert_to_supabase(records):
                 print(f"  Batch {i // batch_size + 1}: Uploaded {len(batch)} records (Status {resp.status_code})")
             else:
                 print(f"  Batch {i // batch_size + 1} failed: HTTP {resp.status_code} - {resp.text[:200]}")
+                succeeded = False
         except Exception as e:
             print(f"  Batch {i // batch_size + 1} exception: {e}")
+            succeeded = False
 
     print("OnlineTenders Zimbabwe synchronization complete!")
+    return succeeded
 
 if __name__ == "__main__":
-    items = scrape_all_onlinetenders(max_pages=40)
+    items = scrape_all_onlinetenders()
     records = build_supabase_records(items)
     print(f"Built {len(records)} verified tender records.")
     # Show sample
@@ -403,4 +431,5 @@ if __name__ == "__main__":
         p = r["payload"]
         print(f"ID: {r['id']} | Ref: {p['refNo']} | Entity: {p['procuringEntity']} | Close: {p['closingDate']} | Status: {r['status']}")
         print(f"  Title: {p['title']}")
-    upsert_to_supabase(records)
+    if not upsert_to_supabase(records):
+        sys.exit(1)

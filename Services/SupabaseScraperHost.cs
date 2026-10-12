@@ -152,7 +152,7 @@ public sealed class SupabaseScraperWorker : BackgroundService
                 {
                     var pages = SupabaseScraperHost.ResolveInt(_config, "Scraper:Pages", 50, "SCRAPER_PAGES", "Scraper__Pages", "Scraper_Pages");
                     var interval = SupabaseScraperHost.ResolveInt(_config, "Scraper:IntervalMinutes", 10, "SCRAPER_INTERVAL_MINUTES", "Scraper__IntervalMinutes", "Scraper_IntervalMinutes");
-                    await Scrape(Math.Clamp(pages, 1, 50), cancellation);
+                    await Scrape(Math.Max(1, pages), cancellation);
                     nextCycle = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, interval));
                 }
                 if (_config.GetValue("Scraper:RunOnce", false)) { _lifetime.StopApplication(); return; }
@@ -226,7 +226,9 @@ public sealed class SupabaseScraperWorker : BackgroundService
         var scraper = scope.ServiceProvider.GetRequiredService<ITenderScraperService>();
         var multi = scope.ServiceProvider.GetRequiredService<IMultiSourceProcurementService>();
         var totalAvailable = await scraper.GetTotalPagesAsync();
-        var pagesToScrape = totalAvailable > 0 ? Math.Min(50, Math.Max(pages, totalAvailable)) : Math.Max(pages, 45);
+        // When PRAZ reports its total, scrape the complete catalogue. The configured
+        // page count is only a fallback for source responses without pagination data.
+        var pagesToScrape = totalAvailable > 0 ? totalAvailable : Math.Max(pages, 45);
         _logger.LogInformation("Starting scrape of all {Pages} PRAZ pages (available on PRAZ: {Total}) and regional sources", pagesToScrape, totalAvailable);
         var tenders = await scraper.ScrapeMultiplePagesAsync(1, pagesToScrape).WaitAsync(cancellation);
         var rows = new List<JsonObject>();
@@ -282,7 +284,9 @@ public sealed class SupabaseScraperWorker : BackgroundService
                     var psi = new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = "python3",
-                        Arguments = $"\"{scriptPath}\"",
+                        Arguments = scriptName == "scrape_zppa.py"
+                            ? $"\"{scriptPath}\" --pages 0"
+                            : $"\"{scriptPath}\"",
                         WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(scriptPath))!,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -292,12 +296,18 @@ public sealed class SupabaseScraperWorker : BackgroundService
                     using var p = System.Diagnostics.Process.Start(psi);
                     if (p != null)
                     {
+                        // Drain both redirected streams while the process runs. Full-site
+                        // scrapes produce enough output to otherwise fill the stdout pipe
+                        // and leave the child process waiting indefinitely.
+                        var stdoutTask = p.StandardOutput.ReadToEndAsync(cancellation);
                         var stderrTask = p.StandardError.ReadToEndAsync(cancellation);
                         await p.WaitForExitAsync(cancellation);
+                        var stdout = await stdoutTask;
                         var stderr = await stderrTask;
                         if (p.ExitCode == 0)
                         {
                             _logger.LogInformation("✅ {ScriptName} scraper completed successfully in cycle", scriptName);
+                            _logger.LogDebug("{ScriptName} output: {Output}", scriptName, stdout?.Trim());
                         }
                         else
                         {

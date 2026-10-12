@@ -72,12 +72,14 @@ def parse_ungm_date(raw: str):
             pass
     return None
 
-def fetch_ungm_notices(country_id: str, country_name: str, country_code: str, max_pages: int = 25):
+def fetch_ungm_notices(country_id: str, country_name: str, country_code: str):
     print(f"Fetching UNGM active notices for {country_name} (Country ID: {country_id}) across all pages...")
     notices = []
     seen_ids = set()
+    page = 0
+    pages_fetched = 0
 
-    for page in range(max_pages):
+    while True:
         payload = {
             "PageIndex": page,
             "PageSize": 15,
@@ -109,6 +111,8 @@ def fetch_ungm_notices(country_id: str, country_name: str, country_code: str, ma
             if not blocks:
                 print(f"  Page {page}: No more notices found, ending pagination.")
                 break
+
+            pages_fetched += 1
 
             page_count = 0
             for i in range(0, len(blocks), 2):
@@ -156,11 +160,13 @@ def fetch_ungm_notices(country_id: str, country_name: str, country_code: str, ma
             print(f"  Page {page}: Extracted {page_count} notices (Total so far: {len(notices)})")
             if page_count == 0:
                 break
+            page += 1
+            time.sleep(0.2)
         except Exception as ex:
             print(f"Error fetching UNGM page {page} for {country_name}: {ex}")
             break
 
-    print(f"Finished {country_name}: Extracted {len(notices)} total active notices across {page + 1} pages.")
+    print(f"Finished {country_name}: Extracted {len(notices)} total active notices across {pages_fetched} pages.")
     return notices
 
 def fetch_notice_detail(notice):
@@ -313,7 +319,7 @@ def build_supabase_records(notices):
 def upsert_to_supabase(records):
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("Missing Supabase credentials, skipping database upload.")
-        return
+        return False
 
     headers = {
         "apikey": SUPABASE_KEY,
@@ -326,6 +332,7 @@ def upsert_to_supabase(records):
     # trigger again on every synchronization run.
     print(f"Uploading {len(records)} verified UNGM records to Supabase...")
     batch_size = 25
+    succeeded = True
     for i in range(0, len(records), batch_size):
         batch = records[i:i + batch_size]
         url = f"{SUPABASE_URL}/rest/v1/tenders?on_conflict=id"
@@ -335,10 +342,13 @@ def upsert_to_supabase(records):
                 print(f"  Batch {i // batch_size + 1}: Uploaded {len(batch)} records (Status {resp.status_code})")
             else:
                 print(f"  Batch {i // batch_size + 1} failed: HTTP {resp.status_code} - {resp.text[:200]}")
+                succeeded = False
         except Exception as e:
             print(f"  Batch {i // batch_size + 1} exception: {e}")
+            succeeded = False
 
     print("UNGM synchronization complete!")
+    return succeeded
 
 def main():
     # 1. Fetch Zimbabwe (2520) & Zambia (2519)
@@ -359,7 +369,8 @@ def main():
         print(f"[{r['country']}] Ref: {p['refNo']} | Agency: {p['procuringEntity']} | Close: {p['closingDate']} | Docs: {len(p['documents'])}")
         print(f"   Title: {p['title']}")
 
-    upsert_to_supabase(records)
+    if not upsert_to_supabase(records):
+        sys.exit(1)
 
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "--detail":
