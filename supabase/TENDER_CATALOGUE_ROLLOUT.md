@@ -11,7 +11,8 @@ each migration only once, using the files in this backend repository as canonica
 1. Take a database backup/snapshot. Test against a staging copy first.
 2. Through an authorised Supabase migration connection or SQL Editor, apply
    `migrations/202609220001_tender_ai_classification_cache.sql` if missing, then
-   `migrations/202610120001_tender_catalogue.sql`. The existing base schema/RLS
+   `migrations/202610120001_tender_catalogue.sql`, followed by
+   `migrations/202610130001_official_portal_order.sql`. The existing base schema/RLS
    migrations must already be installed. Detail views also retain their existing
    prerequisite, `202609080008_tender_detail_cache.sql`.
 3. The catalogue migration backfills summaries and builds indexes in a transaction.
@@ -32,7 +33,7 @@ each migration only once, using the files in this backend repository as canonica
    variables except the public Supabase URL/publishable key.
 6. Verify with active Zambia, Zimbabwe, regional and inactive accounts. Zambia must
    not see Zimbabwe-only notices, even by manipulating query parameters. Check
-   portal search, page counts, newest-first ordering, date-only deadlines, and
+   portal search, page counts, national-portal-first/newest ordering, date-only deadlines, and
    opening details. A directory response should contain at most 100 summaries,
    never attachments/full payloads. Default page size is 50.
 

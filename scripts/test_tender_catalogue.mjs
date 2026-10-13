@@ -26,6 +26,7 @@ await db.exec(`insert into public.tenders(id,source,source_id,country,status,pay
 const sql = await migration("202610120001_tender_catalogue");
 await db.exec(sql);
 await db.exec(sql); // Safe migration rerun.
+await db.exec(await migration("202610130001_official_portal_order"));
 check((await db.query("select catalog_summary->>'title' as title, scraped_at::text as stamp from tenders where id='backfill'")).rows[0].title === "Existing notice", "backfill preserves notice");
 check((await db.query("select scraped_at = '2026-01-01'::timestamptz as ok from tenders where id='backfill'")).rows[0].ok, "backfill preserves scrape timestamp");
 await db.exec("delete from tenders where id='backfill'");
@@ -46,6 +47,7 @@ await insert("expired", "ZM", { closingDate: "2000-01-01" });
 await insert("closed", "ZM", {}, "closed");
 await insert("unknown", "ZM", { closingDate: "invalid", publishDate: "invalid" });
 await insert("literal", "ZM", { title: "Discount 100%_safe" });
+await db.exec(`update tenders set source='ungm', payload=payload || '{"publishDate":"2026-10-13T12:00:00+02:00"}'::jsonb where id='literal'`);
 await insert("soon", "ZM", { closingDate: new Date(Date.now() + 86400000).toISOString() });
 async function asUser(user, operation, role = "authenticated") {
   await db.exec("begin");
@@ -61,7 +63,9 @@ async function page(user, args = {}) {
 }
 const zm = await page("ZM");
 check(zm.total === 6 && zm.data.length === 6, "count excludes other country, expired and closed rows");
-check(zm.data[0].id === "zm-new" && zm.data.at(-1).id === "unknown", "newest timestamp first; unknown dates last");
+check(zm.data[0].id === "zm-new", "ZPPA leads Zambia and is newest-first within the official source");
+check(zm.data.findIndex((row) => row.id === "unknown") === zm.data.findLastIndex((row) => row.sourcePortal === "ZPPA e-Procurement"), "unknown ZPPA dates sort last inside the official group");
+check(zm.data.findIndex((row) => row.id === "literal") > zm.data.findLastIndex((row) => row.sourcePortal === "ZPPA e-Procurement"), "newer external notice follows all official ZPPA notices");
 check(!zm.data.some((row) => row.id === "zw-private"), "RLS excludes ZW for Zambia user");
 check((await page("ZM", { p_country: "ZW" })).data.every((row) => row.countryCode === "ALL"), "forged country cannot widen RLS");
 check((await page("ZW")).total === 2, "ZW sees ZW and regional only");
@@ -105,7 +109,7 @@ const bounded = await page("ZM", { p_size: 50 });
 const elapsedMs = Math.round(performance.now() - start);
 const old = await asUser("ZM", () => db.query("select id,country,source,source_id,payload,scraped_at from tenders where status='live'"));
 check(bounded.total === 5653 && bounded.data.length === 50, "5653 notices return exactly 50 summaries with accurate total");
-const plan = await asUser("ZM", () => db.query("explain select catalog_summary from tenders where status='live' and (catalog_closes_at is null or catalog_closes_at>=now()) order by catalog_published_at desc nulls last,id limit 50"));
-check(JSON.stringify(plan.rows).includes("tenders_catalog_newest_idx"), "newest page uses index under RLS");
+const plan = await asUser("ZM", () => db.query("explain select catalog_summary from tenders where status='live' and country='ZM' and (catalog_closes_at is null or catalog_closes_at>=now()) order by (catalog_portal in ('PRAZ','ZPPA')) desc,catalog_published_at desc nulls last,id limit 50"));
+check(JSON.stringify(plan.rows).includes("tenders_catalog_official_newest_idx"), "official-first newest page uses index under RLS");
 console.log(JSON.stringify({ assertions, synthetic: { rows: 5653, returned: bounded.data.length, queryMs: elapsedMs, pagedBytes: Buffer.byteLength(JSON.stringify(bounded)), oldAllRowsBytes: Buffer.byteLength(JSON.stringify(old.rows)) }, plan: plan.rows }, null, 2));
 await db.close();
