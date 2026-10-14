@@ -9,11 +9,23 @@ type TenderRecord = {
   payload?: Record<string, unknown>;
 };
 
+type WorkflowEmailRecord = {
+  id?: string;
+  recipient_email?: string;
+  recipient_name?: string;
+  subject?: string;
+  message?: string;
+  action_url?: string;
+  event_type?: string;
+  status?: string;
+  attempts?: number;
+};
+
 type DatabaseWebhookPayload = {
   type?: string;
   table?: string;
   schema?: string;
-  record?: TenderRecord | null;
+  record?: TenderRecord | WorkflowEmailRecord | null;
   recipient?: string;
 };
 
@@ -383,6 +395,42 @@ async function sendEmail(to: string, subject: string, html: string) {
   return result.id as string;
 }
 
+async function sendEmailWithRetry(to: string, subject: string, html: string) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await sendEmail(to, subject, html);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Email delivery failed");
+}
+
+function workflowEmail(record: WorkflowEmailRecord) {
+  const appUrl = Deno.env.get("ATCIS_APP_URL") || "https://atcis.vercel.app";
+  let actionUrl = appUrl;
+  try {
+    actionUrl = new URL(String(record.action_url || "/dashboard"), appUrl).toString();
+  } catch {
+    // Keep the configured application URL if an invalid path somehow reaches the outbox.
+  }
+  const recipientName = String(record.recipient_name || "Team member");
+  const message = String(record.message || "A tender workflow item needs your attention.");
+
+  return {
+    subject: String(record.subject || "ATCIS workflow notification"),
+    html: `
+      <h2>${escapeHtml(record.subject || "Tender workflow update")}</h2>
+      <p>Hello ${escapeHtml(recipientName)},</p>
+      <p>${escapeHtml(message)}</p>
+      <p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#ffffff;text-decoration:none;border-radius:6px">Open in ATCIS</a></p>
+      <p style="color:#64748b;font-size:12px">This is an operational ATCIS workflow notification for an assignment or approval action.</p>
+    `,
+  };
+}
+
 function tenderEmail(tender: TenderRecord) {
   const payload = tender.payload ?? {};
   const title = payload.title || "New tender opportunity";
@@ -464,7 +512,62 @@ Deno.serve(async (request) => {
       return Response.json({ error: "Webhook authentication required" }, { status: 403 });
     }
 
-    const tender = event.record;
+    if (
+      (event.type === "INSERT" || event.type === "UPDATE") &&
+      event.schema === "public" &&
+      event.table === "workflow_email_outbox" &&
+      event.record
+    ) {
+      const queued = event.record as WorkflowEmailRecord;
+      const outboxId = String(queued.id || "");
+      if (!outboxId) return Response.json({ error: "Outbox identity is missing" }, { status: 400 });
+
+      const { data: claimed, error: claimError } = await admin
+        .from("workflow_email_outbox")
+        .update({
+          status: "processing",
+          attempts: Number(queued.attempts || 0) + 1,
+          processing_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", outboxId)
+        .eq("status", "pending")
+        .select("id,recipient_email,recipient_name,subject,message,action_url,event_type,status,attempts")
+        .maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimed) return Response.json({ skipped: true, message: "Workflow email was already claimed" });
+
+      try {
+        if (!EMAIL_PATTERN.test(String(claimed.recipient_email || ""))) {
+          throw new Error("Workflow recipient email is invalid");
+        }
+        const content = workflowEmail(claimed as WorkflowEmailRecord);
+        const emailId = await sendEmailWithRetry(claimed.recipient_email, content.subject, content.html);
+        const { error: completeError } = await admin
+          .from("workflow_email_outbox")
+          .update({
+            status: "sent",
+            provider_message_id: emailId,
+            sent_at: new Date().toISOString(),
+            last_error: null,
+          })
+          .eq("id", outboxId)
+          .eq("status", "processing");
+        if (completeError) console.error("Failed to finalize workflow email", completeError);
+        return Response.json({ sent: true, emailId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Workflow email delivery failed";
+        const { error: failError } = await admin
+          .from("workflow_email_outbox")
+          .update({ status: "failed", last_error: message.slice(0, 1000) })
+          .eq("id", outboxId)
+          .eq("status", "processing");
+        if (failError) console.error("Failed to record workflow email error", failError);
+        return Response.json({ sent: false, error: message }, { status: 502 });
+      }
+    }
+
+    const tender = event.record as TenderRecord | null | undefined;
     if (
       event.type !== "INSERT" ||
       event.schema !== "public" ||
